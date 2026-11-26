@@ -44,7 +44,6 @@ import {
   moveTaskToList,
   parseBatchLines,
   reorderList,
-  reorderListToTarget,
   reorderTask,
   reorderTaskToTarget,
   rescheduleOverdueTasks,
@@ -82,26 +81,16 @@ import { QuickDumpBar } from './components/QuickDumpBar';
 import { TaskFormModal } from './components/TaskFormModal';
 import { Toast } from './components/Toast';
 
-type DragState =
-  | {
-      kind: 'box';
-      listId: number;
-      label: string;
-      x: number;
-      y: number;
-      hoverListId: number | null;
-    }
-  | {
-      kind: 'task';
-      taskId: number;
-      sourceListId: number;
-      label: string;
-      x: number;
-      y: number;
-      hoverListId: number | null;
-      hoverTaskId: number | null;
-    }
-  | null;
+type DragState = {
+  kind: 'task';
+  taskId: number;
+  sourceListId: number;
+  label: string;
+  x: number;
+  y: number;
+  hoverListId: number | null;
+  hoverTaskId: number | null;
+} | null;
 
 const STARTER_BOXES: Array<{
   name: string;
@@ -358,14 +347,6 @@ export default function App() {
 
       setDragState((prev) => {
         if (!prev) return null;
-        if (prev.kind === 'box') {
-          return {
-            ...prev,
-            x: e.clientX,
-            y: e.clientY,
-            hoverListId: Number.isFinite(hoverListId) ? hoverListId : null,
-          };
-        }
         return {
           ...prev,
           x: e.clientX,
@@ -380,23 +361,6 @@ export default function App() {
       const current = dragStateRef.current;
       setDragState(null);
       if (cancelled || !current) return;
-
-      if (current.kind === 'box') {
-        if (
-          current.hoverListId != null &&
-          current.hoverListId !== current.listId
-        ) {
-          const moved = await reorderListToTarget(
-            current.listId,
-            current.hoverListId
-          );
-          if (moved) {
-            triggerHaptic('check');
-            showToast('Ordem das caixas atualizada');
-          }
-        }
-        return;
-      }
 
       // Arrastando uma ação:
       // 1) Soltar em outra caixa -> move a ação para essa caixa
@@ -446,24 +410,6 @@ export default function App() {
       window.removeEventListener('pointercancel', onCancel);
     };
   }, [isDragging, showToast]);
-
-  const handleStartBoxDrag = (
-    list: TaskList,
-    e: ReactPointerEvent<HTMLButtonElement>
-  ) => {
-    if (list.id == null || list.isInbox) return;
-    e.stopPropagation();
-    e.preventDefault();
-    triggerHaptic('check');
-    setDragState({
-      kind: 'box',
-      listId: list.id,
-      label: list.name,
-      x: e.clientX,
-      y: e.clientY,
-      hoverListId: null,
-    });
-  };
 
   const handleStartTaskDrag = (
     task: Task,
@@ -1068,8 +1014,8 @@ export default function App() {
             {reorderBoxesMode && (
               <div className="reorder-banner">
                 <span>
-                  Arraste pela alça <strong>⋮⋮</strong> ou use{' '}
-                  <strong>‹ ›</strong> nas caixas para reorganizar.
+                  Use as setas <strong>‹ ›</strong> nas caixas para reorganizar a
+                  ordem.
                 </span>
                 <button
                   type="button"
@@ -1120,15 +1066,6 @@ export default function App() {
                       }
                     : { canPrev: false, canNext: false };
 
-                const isDraggingSelf =
-                  dragState?.kind === 'box' && dragState.listId === list.id;
-
-                const isBoxDropTarget =
-                  dragState?.kind === 'box' &&
-                  dragState.hoverListId === list.id &&
-                  dragState.listId !== list.id &&
-                  !list.isInbox;
-
                 const isTaskDropTarget =
                   dragState?.kind === 'task' &&
                   dragState.hoverListId === list.id &&
@@ -1136,9 +1073,7 @@ export default function App() {
 
                 const dropLabel = isTaskDropTarget
                   ? `Mover para ${list.name}`
-                  : isBoxDropTarget
-                    ? 'Soltar aqui'
-                    : null;
+                  : null;
 
                 return (
                   <BoxCard
@@ -1149,8 +1084,7 @@ export default function App() {
                     reorderMode={reorderBoxesMode}
                     canMovePrev={bounds.canPrev}
                     canMoveNext={bounds.canNext}
-                    isDraggingSelf={isDraggingSelf}
-                    isDropTarget={isBoxDropTarget || isTaskDropTarget}
+                    isDropTarget={isTaskDropTarget}
                     dropLabel={dropLabel}
                     draggingTaskId={
                       dragState?.kind === 'task' ? dragState.taskId : null
@@ -1164,7 +1098,6 @@ export default function App() {
                     onTogglePin={handleTogglePin}
                     onMovePrev={(id) => void handleMoveBox(id, 'up')}
                     onMoveNext={(id) => void handleMoveBox(id, 'down')}
-                    onStartBoxDrag={handleStartBoxDrag}
                     onStartTaskDrag={handleStartTaskDrag}
                     onToggleTask={(taskId, completed) =>
                       void handleToggleTask(taskId, completed)

@@ -19,7 +19,6 @@ interface BoxCardProps {
   reorderMode: boolean;
   canMovePrev: boolean;
   canMoveNext: boolean;
-  isDraggingSelf: boolean;
   isDropTarget: boolean;
   dropLabel: string | null;
   draggingTaskId: number | null;
@@ -29,7 +28,6 @@ interface BoxCardProps {
   onTogglePin: (list: TaskList) => void;
   onMovePrev: (listId: number) => void;
   onMoveNext: (listId: number) => void;
-  onStartBoxDrag: (list: TaskList, e: PointerEvent<HTMLButtonElement>) => void;
   onStartTaskDrag: (task: Task, e: PointerEvent<HTMLButtonElement>) => void;
   onToggleTask: (taskId: number, completed: boolean) => void;
   onQuickAdd: (listId: number, title: string) => Promise<void>;
@@ -44,7 +42,6 @@ export function BoxCard({
   reorderMode,
   canMovePrev,
   canMoveNext,
-  isDraggingSelf,
   isDropTarget,
   dropLabel,
   draggingTaskId,
@@ -54,7 +51,6 @@ export function BoxCard({
   onTogglePin,
   onMovePrev,
   onMoveNext,
-  onStartBoxDrag,
   onStartTaskDrag,
   onToggleTask,
   onQuickAdd,
@@ -81,7 +77,7 @@ export function BoxCard({
 
   return (
     <article
-      className={`box-card ${list.isInbox ? 'box-card-inbox' : ''} ${reorderMode ? 'is-reordering' : ''} ${isDraggingSelf ? 'is-dragging' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
+      className={`box-card ${list.isInbox ? 'box-card-inbox' : ''} ${reorderMode ? 'is-reordering' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
       data-color={list.color || 'blue'}
       data-drop-list-id={list.id}
       onClick={() => {
@@ -96,101 +92,88 @@ export function BoxCard({
         </div>
       )}
 
-      <div className="box-card-header">
-        <div className="box-card-title-wrap">
-          {!list.isInbox && (
-            <button
-              type="button"
-              className="drag-handle-xs"
-              aria-label={`Arrastar caixa ${list.name} para reordenar`}
-              title="Arrastar para reordenar"
-              onClick={(e) => e.stopPropagation()}
-              onPointerDown={(e) => onStartBoxDrag(list, e)}
-            >
-              <GripVertical size={13} />
-            </button>
-          )}
-
+      <div className="box-card-header-stack">
+        <div className="box-card-title-row">
           <span className="box-icon-pill" aria-hidden="true">
-            <Icon size={14} />
+            <Icon size={13} />
           </span>
-
-          <div className="box-title-block">
-            <h2 className="box-card-title">
-              {list.name}
-              {list.isReusable && (
-                <RotateCcw
-                  size={10}
-                  className="reusable-inline-icon"
-                  aria-label="Caixa reutilizável"
-                />
-              )}
-            </h2>
-            <span className="box-card-meta">
-              {pendingTasks.length === 0
-                ? completedCount > 0
-                  ? `${completedCount} feita${completedCount === 1 ? '' : 's'}`
-                  : 'Vazia'
-                : `${pendingTasks.length} pendente${pendingTasks.length === 1 ? '' : 's'}`}
-            </span>
-          </div>
+          <h2 className="box-card-title" title={list.name}>
+            {list.name}
+          </h2>
+          {list.isReusable && (
+            <RotateCcw
+              size={11}
+              className="reusable-inline-icon"
+              aria-label="Caixa reutilizável"
+            />
+          )}
         </div>
 
         <div
-          className="box-card-actions"
+          className="box-card-subrow"
           onClick={(e) => e.stopPropagation()}
         >
-          {reorderMode ? (
-            !list.isInbox ? (
+          <span className="box-card-meta">
+            {pendingTasks.length === 0
+              ? completedCount > 0
+                ? `${completedCount} feita${completedCount === 1 ? '' : 's'}`
+                : 'Vazia'
+              : `${pendingTasks.length} pendente${pendingTasks.length === 1 ? '' : 's'}`}
+          </span>
+
+          <div className="box-card-actions">
+            {reorderMode ? (
+              !list.isInbox ? (
+                <>
+                  <button
+                    type="button"
+                    className="icon-btn-xs reorder-arrow-btn"
+                    disabled={!canMovePrev}
+                    aria-label={`Mover caixa ${list.name} para antes`}
+                    title="Mover antes"
+                    onClick={() => list.id != null && onMovePrev(list.id)}
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn-xs reorder-arrow-btn"
+                    disabled={!canMoveNext}
+                    aria-label={`Mover caixa ${list.name} para depois`}
+                    title="Mover depois"
+                    onClick={() => list.id != null && onMoveNext(list.id)}
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </>
+              ) : (
+                <span className="inbox-fixed-tag">Fixa</span>
+              )
+            ) : (
               <>
+                {!list.isInbox && (
+                  <button
+                    type="button"
+                    className={`icon-btn-xs ${list.pinned ? 'is-pinned' : ''}`}
+                    aria-label={list.pinned ? 'Desafixar caixa' : 'Fixar caixa no topo'}
+                    title={list.pinned ? 'Desafixar' : 'Fixar no topo'}
+                    onClick={() => onTogglePin(list)}
+                  >
+                    <Pin size={12} />
+                  </button>
+                )}
                 <button
                   type="button"
-                  className="icon-btn-xs reorder-arrow-btn"
-                  disabled={!canMovePrev}
-                  aria-label={`Mover caixa ${list.name} para antes`}
-                  title="Mover antes"
-                  onClick={() => list.id != null && onMovePrev(list.id)}
+                  className="icon-btn-xs"
+                  aria-label={`Editar caixa ${list.name}`}
+                  title="Editar caixa"
+                  onClick={() => onEdit(list)}
                 >
-                  <ChevronLeft size={15} />
-                </button>
-                <button
-                  type="button"
-                  className="icon-btn-xs reorder-arrow-btn"
-                  disabled={!canMoveNext}
-                  aria-label={`Mover caixa ${list.name} para depois`}
-                  title="Mover depois"
-                  onClick={() => list.id != null && onMoveNext(list.id)}
-                >
-                  <ChevronRight size={15} />
+                  <Pencil size={12} />
                 </button>
               </>
-            ) : (
-              <span className="inbox-fixed-tag">Fixa</span>
-            )
-          ) : (
-            <>
-              {!list.isInbox && (
-                <button
-                  type="button"
-                  className={`icon-btn-xs ${list.pinned ? 'is-pinned' : ''}`}
-                  aria-label={list.pinned ? 'Desafixar caixa' : 'Fixar caixa no topo'}
-                  title={list.pinned ? 'Desafixar' : 'Fixar no topo'}
-                  onClick={() => onTogglePin(list)}
-                >
-                  <Pin size={13} />
-                </button>
-              )}
-              <button
-                type="button"
-                className="icon-btn-xs"
-                aria-label={`Editar caixa ${list.name}`}
-                title="Editar caixa"
-                onClick={() => onEdit(list)}
-              >
-                <Pencil size={13} />
-              </button>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

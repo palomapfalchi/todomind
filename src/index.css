@@ -528,9 +528,9 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 7px;
-  height: 164px;
-  padding: 10px;
+  gap: 6px;
+  height: 170px;
+  padding: 9px 10px;
   background: var(--surface);
   border: 1px solid var(--box-border);
   border-top: 3px solid var(--box-accent);
@@ -551,28 +551,35 @@ body {
   transform: scale(0.99);
 }
 
-.box-card-header {
+.box-card-header-stack {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 4px;
+  flex-direction: column;
+  gap: 3px;
   flex-shrink: 0;
 }
 
-.box-card-title-wrap {
+.box-card-title-row {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
 }
 
+.box-card-subrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 22px;
+}
+
 .box-icon-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
   background: var(--box-tint);
   color: var(--box-accent);
   flex-shrink: 0;
@@ -583,17 +590,13 @@ body {
   height: 30px;
 }
 
-.box-title-block {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
 .box-card-title {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   font-size: 0.84rem;
   font-weight: 700;
-  line-height: 1.18;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -603,12 +606,13 @@ body {
   font-size: 0.66rem;
   color: var(--text-muted);
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .box-card-actions {
   display: flex;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
   flex-shrink: 0;
 }
 
