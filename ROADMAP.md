@@ -35,21 +35,19 @@ Plano de evolução do **ToDoMind** com foco em organização visual em caixas, 
 
 ---
 
-## v2.0 — Foco & Recursos TDAH (Próxima)
-- [ ] Migration Dexie `v3` (`subtasks`, `dueTime`, `estimatedMinutes`, `energy`, `archivedAt`, `isReusable`)
-- [ ] **Subtarefas / Micropassos:** quebrar tarefas grandes em passos pequenos com barra de progresso
-- [ ] **Rotinas reutilizáveis:** botão *"Resetar checklist"* em caixas como Mercado, Rotina da Manhã ou Mala
-- [ ] **Modo Foco / Agora:** ocultar todas as caixas e focar em 1 a 3 ações com timer visual suave (5 / 15 / 25 min)
-- [ ] **Atrasos sem culpa:** botão de 1 toque *"Trazer atrasadas para hoje"* ou *"Adiar para amanhã"*
-- [ ] **Etiquetas de tempo e energia:** marcar ações rápidas (2 min / 5 min / 15 min) ou baixa energia
-- [ ] **Modo Baixo Estímulo:** paleta mais neutra e menos badges na tela para dias de sobrecarga sensorial
-- [ ] Feedback tátil leve (`navigator.vibrate`) e micro-animação ao concluir ações
+## v2.0 — Foco & Recursos TDAH (Concluída)
+- [x] Migration Dexie `v4` (`subtasks`, `dueTime`, `estimatedMinutes`, `energy`, `archivedAt`, `isReusable`)
+- [x] **Subtarefas / Micropassos:** quebrar tarefas grandes em passos pequenos com barra de progresso
+- [x] **Rotinas reutilizáveis:** botão *"Resetar checklist"* em caixas como Mercado, Rotina da Manhã ou Mala
+- [x] **Atrasos sem culpa:** botão de 1 toque *"Trazer atrasadas para hoje"* ou *"Adiar para amanhã"*
+- [x] **Etiquetas de tempo e energia:** marcar ações rápidas (2 min / 5 min / 15 min / 30 min / 1h) e nível de energia
+- [x] Feedback tátil leve (`navigator.vibrate`) e micro-animação ao concluir ações
+- [x] Arrastar e soltar (drag-and-drop) para reordenar caixas e mover ações entre caixas (funciona no celular e no PC)
 
 ---
 
-## v2.5 — Busca, Organização & Lembretes
+## v2.5 — Busca, Organização & Lembretes (Próxima)
 - [ ] Busca global instantânea entre todas as caixas e ações
-- [ ] Arrastar e soltar (drag-and-drop) para reordenar caixas e mover ações entre caixas
 - [ ] Arquivar/recolher caixas pausadas sem excluir histórico
 - [ ] Filtros rápidos por tempo livre, nível de energia ou prioridade
 - [ ] Lembretes locais (Notification API / Service Worker) para ações com horário definido (`dueTime`)
@@ -57,7 +55,7 @@ Plano de evolução do **ToDoMind** com foco em organização visual em caixas, 
 ---
 
 ## v3.0 — Login por E-mail & Nuvem Offline-First
-- [ ] Migration Dexie `v4` (`uuid`, `syncStatus`, `deletedAt` para soft-delete, `lastSyncedAt`)
+- [ ] Migration Dexie `v5` (`uuid`, `syncStatus`, `deletedAt` para soft-delete, `lastSyncedAt`)
 - [ ] Autenticação com **e-mail** (Magic Link ou e-mail/senha) e login com Google (via Supabase ou Firebase)
 - [ ] Migração automática dos dados locais do dispositivo ao criar conta
 - [ ] Sincronização em segundo plano entre celular e computador mantendo a interface 100% instantânea offline
@@ -77,3 +75,5 @@ Plano de evolução do **ToDoMind** com foco em organização visual em caixas, 
 - [ ] Compartilhamento de caixas específicas com outras pessoas (ex.: caixa *Mercado* compartilhada com família)
 - [ ] Assistente opcional para quebrar uma tarefa complexa em 3 a 5 micropassos automaticamente
 - [ ] Estatísticas gentis de progresso (foco no que foi feito, sem punição por sequências perdidas)
+- [ ] **Modo Foco / Agora:** ocultar todas as caixas e focar em 1 a 3 ações com timer visual suave (5 / 15 / 25 min)
+- [ ] **Modo Baixo Estímulo:** paleta mais neutra e menos badges na tela para dias de sobrecarga sensorial

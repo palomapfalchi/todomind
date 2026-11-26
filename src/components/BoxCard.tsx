@@ -1,11 +1,13 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type PointerEvent } from 'react';
 import {
   AlignLeft,
   ChevronLeft,
   ChevronRight,
+  GripVertical,
   Pencil,
   Pin,
   Plus,
+  RotateCcw,
 } from 'lucide-react';
 import { getBoxIcon } from '../constants/boxes';
 import type { Task, TaskList } from '../db/types';
@@ -17,11 +19,18 @@ interface BoxCardProps {
   reorderMode: boolean;
   canMovePrev: boolean;
   canMoveNext: boolean;
+  isDraggingSelf: boolean;
+  isDropTarget: boolean;
+  dropLabel: string | null;
+  draggingTaskId: number | null;
+  justCompletedTaskId: number | null;
   onOpen: (listId: number) => void;
   onEdit: (list: TaskList) => void;
   onTogglePin: (list: TaskList) => void;
   onMovePrev: (listId: number) => void;
   onMoveNext: (listId: number) => void;
+  onStartBoxDrag: (list: TaskList, e: PointerEvent<HTMLButtonElement>) => void;
+  onStartTaskDrag: (task: Task, e: PointerEvent<HTMLButtonElement>) => void;
   onToggleTask: (taskId: number, completed: boolean) => void;
   onQuickAdd: (listId: number, title: string) => Promise<void>;
 }
@@ -35,11 +44,18 @@ export function BoxCard({
   reorderMode,
   canMovePrev,
   canMoveNext,
+  isDraggingSelf,
+  isDropTarget,
+  dropLabel,
+  draggingTaskId,
+  justCompletedTaskId,
   onOpen,
   onEdit,
   onTogglePin,
   onMovePrev,
   onMoveNext,
+  onStartBoxDrag,
+  onStartTaskDrag,
   onToggleTask,
   onQuickAdd,
 }: BoxCardProps) {
@@ -65,21 +81,51 @@ export function BoxCard({
 
   return (
     <article
-      className={`box-card ${list.isInbox ? 'box-card-inbox' : ''} ${reorderMode ? 'is-reordering' : ''}`}
+      className={`box-card ${list.isInbox ? 'box-card-inbox' : ''} ${reorderMode ? 'is-reordering' : ''} ${isDraggingSelf ? 'is-dragging' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
       data-color={list.color || 'blue'}
+      data-drop-list-id={list.id}
       onClick={() => {
         if (!reorderMode && list.id != null) {
           onOpen(list.id);
         }
       }}
     >
+      {isDropTarget && dropLabel && (
+        <div className="box-drop-overlay" aria-hidden="true">
+          <span>{dropLabel}</span>
+        </div>
+      )}
+
       <div className="box-card-header">
         <div className="box-card-title-wrap">
+          {!list.isInbox && (
+            <button
+              type="button"
+              className="drag-handle-xs"
+              aria-label={`Arrastar caixa ${list.name} para reordenar`}
+              title="Arrastar para reordenar"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => onStartBoxDrag(list, e)}
+            >
+              <GripVertical size={13} />
+            </button>
+          )}
+
           <span className="box-icon-pill" aria-hidden="true">
             <Icon size={14} />
           </span>
+
           <div className="box-title-block">
-            <h2 className="box-card-title">{list.name}</h2>
+            <h2 className="box-card-title">
+              {list.name}
+              {list.isReusable && (
+                <RotateCcw
+                  size={10}
+                  className="reusable-inline-icon"
+                  aria-label="Caixa reutilizável"
+                />
+              )}
+            </h2>
             <span className="box-card-meta">
               {pendingTasks.length === 0
                 ? completedCount > 0
@@ -151,47 +197,66 @@ export function BoxCard({
       <div className="box-card-body">
         {previewTasks.length > 0 ? (
           <ul className="box-preview-list">
-            {previewTasks.map((task) => (
-              <li
-                key={task.id}
-                className="box-preview-item"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <label className="box-preview-check-wrap">
-                  <input
-                    type="checkbox"
-                    className="box-preview-check"
-                    checked={task.completed}
-                    aria-label={`Concluir "${task.title}"`}
-                    onChange={(e) =>
-                      task.id != null && onToggleTask(task.id, e.target.checked)
-                    }
-                  />
-                </label>
-                <span
-                  className="box-preview-text"
-                  onClick={() => {
-                    if (!reorderMode && list.id != null) onOpen(list.id);
-                  }}
+            {previewTasks.map((task) => {
+              const subtasks = task.subtasks ?? [];
+              const doneSub = subtasks.filter((s) => s.completed).length;
+
+              return (
+                <li
+                  key={task.id}
+                  className={`box-preview-item ${draggingTaskId === task.id ? 'is-dragging' : ''} ${justCompletedTaskId === task.id ? 'task-pop' : ''}`}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  {task.title}
-                </span>
-                {task.description && task.description.trim().length > 0 && (
-                  <AlignLeft
-                    size={11}
-                    className="box-note-indicator"
-                    aria-label="Possui descrição"
-                  />
-                )}
-                {task.priority === 'alta' && (
+                  <label className="box-preview-check-wrap">
+                    <input
+                      type="checkbox"
+                      className="box-preview-check"
+                      checked={task.completed}
+                      aria-label={`Concluir "${task.title}"`}
+                      onChange={(e) =>
+                        task.id != null && onToggleTask(task.id, e.target.checked)
+                      }
+                    />
+                  </label>
                   <span
-                    className="priority-dot priority-dot-alta"
-                    title="Prioridade alta"
-                    aria-label="Prioridade alta"
-                  />
-                )}
-              </li>
-            ))}
+                    className="box-preview-text"
+                    onClick={() => {
+                      if (!reorderMode && list.id != null) onOpen(list.id);
+                    }}
+                  >
+                    {task.title}
+                  </span>
+                  {subtasks.length > 0 && (
+                    <span className="box-subtask-chip">
+                      {doneSub}/{subtasks.length}
+                    </span>
+                  )}
+                  {task.description && task.description.trim().length > 0 && (
+                    <AlignLeft
+                      size={11}
+                      className="box-note-indicator"
+                      aria-label="Possui descrição"
+                    />
+                  )}
+                  {task.priority === 'alta' && (
+                    <span
+                      className="priority-dot priority-dot-alta"
+                      title="Prioridade alta"
+                      aria-label="Prioridade alta"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    className="drag-handle-micro"
+                    aria-label={`Arrastar "${task.title}" para outra caixa`}
+                    title="Arrastar para outra caixa"
+                    onPointerDown={(e) => onStartTaskDrag(task, e)}
+                  >
+                    <GripVertical size={11} />
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className="box-empty-hint">

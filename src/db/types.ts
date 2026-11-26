@@ -2,6 +2,16 @@ export type Priority = 'baixa' | 'media' | 'alta';
 
 export type ListSortMode = 'auto' | 'manual';
 
+export type EnergyLevel = 'baixa' | 'media' | 'alta';
+
+export type EstimatedMinutes = 2 | 5 | 15 | 30 | 60;
+
+export interface Subtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
 export type BoxColorId =
   | 'slate'
   | 'blue'
@@ -34,6 +44,8 @@ export interface TaskList {
   order: number;
   isInbox?: boolean;
   sortMode?: ListSortMode;
+  isReusable?: boolean;
+  archivedAt?: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -45,8 +57,12 @@ export interface Task {
   description?: string;
   priority: Priority;
   dueDate: string | null; // Formato YYYY-MM-DD (sem erro de fuso horário)
+  dueTime?: string | null; // Formato HH:MM opcional
   completed: boolean;
   order: number;
+  subtasks?: Subtask[];
+  estimatedMinutes?: EstimatedMinutes | null;
+  energy?: EnergyLevel | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -70,3 +86,20 @@ export const PRIORITY_WEIGHT: Record<Priority, number> = {
   media: 2,
   baixa: 1,
 };
+
+export const ENERGY_LABEL: Record<EnergyLevel, string> = {
+  baixa: 'Energia baixa',
+  media: 'Energia média',
+  alta: 'Energia alta',
+};
+
+export const ESTIMATED_MINUTES_OPTIONS: Array<{
+  value: EstimatedMinutes;
+  label: string;
+}> = [
+  { value: 2, label: '2 min' },
+  { value: 5, label: '5 min' },
+  { value: 15, label: '15 min' },
+  { value: 30, label: '30 min' },
+  { value: 60, label: '1h' },
+];

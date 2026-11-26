@@ -13,6 +13,7 @@ interface BoxFormModalProps {
     color: BoxColorId;
     icon: BoxIconId;
     pinned: boolean;
+    isReusable: boolean;
   }) => Promise<void>;
   onRequestDelete?: (list: TaskList) => void;
 }
@@ -28,6 +29,7 @@ export function BoxFormModal({
   const [color, setColor] = useState<BoxColorId>('blue');
   const [icon, setIcon] = useState<BoxIconId>('list');
   const [pinned, setPinned] = useState(false);
+  const [isReusable, setIsReusable] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -35,6 +37,7 @@ export function BoxFormModal({
       setColor(initialList?.color ?? 'blue');
       setIcon(initialList?.icon ?? 'list');
       setPinned(initialList?.pinned ?? false);
+      setIsReusable(initialList?.isReusable ?? false);
     }
   }, [open, initialList]);
 
@@ -46,6 +49,7 @@ export function BoxFormModal({
       color,
       icon,
       pinned: initialList?.isInbox ? true : pinned,
+      isReusable: initialList?.isInbox ? false : isReusable,
     });
     onClose();
   };
@@ -102,7 +106,7 @@ export function BoxFormModal({
                 aria-label={label}
                 onClick={() => setIcon(id)}
               >
-                <Icon size={18} />
+                <Icon size={17} />
                 <span>{label}</span>
               </button>
             ))}
@@ -110,14 +114,28 @@ export function BoxFormModal({
         </div>
 
         {!initialList?.isInbox && (
-          <label className="checkbox-inline">
-            <input
-              type="checkbox"
-              checked={pinned}
-              onChange={(e) => setPinned(e.target.checked)}
-            />
-            <span>Fixar esta caixa no topo da tela</span>
-          </label>
+          <div className="checkbox-stack">
+            <label className="checkbox-inline">
+              <input
+                type="checkbox"
+                checked={pinned}
+                onChange={(e) => setPinned(e.target.checked)}
+              />
+              <span>Fixar esta caixa no topo da tela</span>
+            </label>
+
+            <label className="checkbox-inline">
+              <input
+                type="checkbox"
+                checked={isReusable}
+                onChange={(e) => setIsReusable(e.target.checked)}
+              />
+              <span>
+                Caixa reutilizável (habilita botão &ldquo;Resetar checklist&rdquo;
+                para mercado ou rotinas)
+              </span>
+            </label>
+          </div>
         )}
 
         <div className="modal-actions modal-actions-spread">

@@ -63,6 +63,34 @@ export class ToDoMindDatabase extends Dexie {
             task.description = task.description ?? '';
           });
       });
+
+    // Migration v4 (v2.0): Recursos TDAH (subtarefas, tempo, energia, rotinas reutilizáveis e horário)
+    this.version(4)
+      .stores({
+        lists:
+          '++id, name, pinned, order, isInbox, isReusable, archivedAt, createdAt, updatedAt',
+        tasks:
+          '++id, listId, completed, priority, dueDate, dueTime, energy, estimatedMinutes, order, createdAt',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('lists')
+          .toCollection()
+          .modify((list: Partial<TaskList>) => {
+            list.isReusable = list.isReusable ?? false;
+            list.archivedAt = list.archivedAt ?? null;
+          });
+
+        await tx
+          .table('tasks')
+          .toCollection()
+          .modify((task: Partial<Task>) => {
+            task.subtasks = task.subtasks ?? [];
+            task.dueTime = task.dueTime ?? null;
+            task.estimatedMinutes = task.estimatedMinutes ?? null;
+            task.energy = task.energy ?? null;
+          });
+      });
   }
 }
 

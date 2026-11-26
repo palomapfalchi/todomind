@@ -6,17 +6,22 @@ Veja o plano completo das próximas versões em [ROADMAP.md](./ROADMAP.md).
 
 ## Stack
 - Vite + React + TypeScript
-- Dexie (`dexie` + `dexie-react-hooks`) — Schema `v3`
+- Dexie (`dexie` + `dexie-react-hooks`) — Schema `v4`
 - `vite-plugin-pwa` (Workbox + App Shortcuts)
 - CSS puro com tema claro/escuro automático + alternância manual
 - Lucide React (ícones)
 
-## Funcionalidades (v1.6)
-- **Visual em Caixas (Grid Bento uniforme):** várias caixas com altura fixa na tela inicial exibindo os 2 primeiros itens pendentes, cor, ícone, fixação no topo e reordenação manual
-- **Ações direto na caixa:** marque checkboxes e adicione ações rápidas diretamente nos cards sem abrir outra tela
+## Funcionalidades (v2.0)
+- **Visual em Caixas (Grid Bento uniforme):** várias caixas com altura fixa na tela inicial exibindo os 2 primeiros itens pendentes, cor, ícone, fixação no topo e reordenação por **arrastar e soltar** (ou setas)
+- **Arrastar e soltar (touch + mouse):** arraste caixas para reordenar e arraste ações direto de uma caixa para outra (tanto na tela inicial quanto dentro de uma caixa aberta)
 - **Despejo Rápido multi-linha ("Tirar da cabeça"):** barra fixa no topo com caixa **Despejo (Inbox)** permanente onde pular linha (`Enter`) cria várias ações de uma única vez
-- **Detalhes completos da ação:** título, descrição/nota opcional, prioridade (`Baixa`, `Média`, `Alta`), vencimento opcional, reordenação manual ou automática e opção de mover entre caixas
-- **Notificações imediatas (toast):** feedback visual sempre que ações ou caixas são salvas, movidas ou atualizadas
+- **Recursos pensados para TDAH:**
+  - **Micropassos / Subtarefas** com barra de progresso interativa em cada ação
+  - **Rotinas reutilizáveis** com botão *"Resetar checklist"* (ideal para Mercado, Casa, Mala)
+  - **Atrasos sem culpa** com botões de 1 toque *"Trazer para hoje"* e *"Adiar p/ amanhã"*
+  - **Etiquetas de tempo estimado** (`2 min` a `1h`), **nível de energia** e **horário opcional**
+  - **Feedback tátil leve** (`navigator.vibrate`) e micro-animação ao concluir ações
+- **Detalhes completos & Notificações (toast):** descrição/nota opcional acima do vencimento, prioridade, ordenação manual ou automática e feedback imediato ao salvar/mover
 - **Backup local em JSON:** exporte e importe suas caixas e ações (mesclando ou substituindo dados)
 - **Atalhos PWA no Android:** segure o ícone do app para abrir direto em *Despejo Rápido* ou *Nova Caixa*
 - **Tema claro e escuro:** sincronizado com o sistema e com preferência salva localmente
