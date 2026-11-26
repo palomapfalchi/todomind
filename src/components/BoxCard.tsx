@@ -4,7 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   GripVertical,
-  Pencil,
+  MoreVertical,
   Pin,
   Plus,
   RotateCcw,
@@ -24,8 +24,7 @@ interface BoxCardProps {
   draggingTaskId: number | null;
   justCompletedTaskId: number | null;
   onOpen: (listId: number) => void;
-  onEdit: (list: TaskList) => void;
-  onTogglePin: (list: TaskList) => void;
+  onOpenMenu: (list: TaskList) => void;
   onMovePrev: (listId: number) => void;
   onMoveNext: (listId: number) => void;
   onStartTaskDrag: (task: Task, e: PointerEvent<HTMLButtonElement>) => void;
@@ -47,8 +46,7 @@ export function BoxCard({
   draggingTaskId,
   justCompletedTaskId,
   onOpen,
-  onEdit,
-  onTogglePin,
+  onOpenMenu,
   onMovePrev,
   onMoveNext,
   onStartTaskDrag,
@@ -114,6 +112,13 @@ export function BoxCard({
           onClick={(e) => e.stopPropagation()}
         >
           <span className="box-card-meta">
+            {!list.isInbox && list.pinned && (
+              <Pin
+                size={10}
+                className="pinned-inline-icon"
+                aria-label="Fixada no topo"
+              />
+            )}
             {pendingTasks.length === 0
               ? completedCount > 0
                 ? `${completedCount} feita${completedCount === 1 ? '' : 's'}`
@@ -150,28 +155,15 @@ export function BoxCard({
                 <span className="inbox-fixed-tag">Fixa</span>
               )
             ) : (
-              <>
-                {!list.isInbox && (
-                  <button
-                    type="button"
-                    className={`icon-btn-xs ${list.pinned ? 'is-pinned' : ''}`}
-                    aria-label={list.pinned ? 'Desafixar caixa' : 'Fixar caixa no topo'}
-                    title={list.pinned ? 'Desafixar' : 'Fixar no topo'}
-                    onClick={() => onTogglePin(list)}
-                  >
-                    <Pin size={12} />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="icon-btn-xs"
-                  aria-label={`Editar caixa ${list.name}`}
-                  title="Editar caixa"
-                  onClick={() => onEdit(list)}
-                >
-                  <Pencil size={12} />
-                </button>
-              </>
+              <button
+                type="button"
+                className="icon-btn-xs"
+                aria-label={`Opções da caixa ${list.name}`}
+                title="Opções da caixa"
+                onClick={() => onOpenMenu(list)}
+              >
+                <MoreVertical size={13} />
+              </button>
             )}
           </div>
         </div>

@@ -10,6 +10,8 @@ import {
 } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
+  Archive,
+  ArchiveRestore,
   ArrowLeft,
   ArrowUpDown,
   BatteryFull,
@@ -22,18 +24,21 @@ import {
   Clock,
   CornerDownLeft,
   GripVertical,
-  HardDriveDownload,
-  Moon,
+  Menu,
+  MoreVertical,
   Pencil,
+  Pin,
+  PinOff,
   Plus,
   RotateCcw,
+  Search,
   Sparkles,
-  Sun,
   Trash2,
 } from 'lucide-react';
 import { getBoxIcon } from './constants/boxes';
 import { db } from './db/database';
 import {
+  archiveList,
   createList,
   createTask,
   createTasksBatch,
@@ -54,6 +59,7 @@ import {
   toggleListPinned,
   toggleSubtaskCompleted,
   toggleTaskCompleted,
+  unarchiveList,
   updateList,
   updateTask,
 } from './db/repositories';
@@ -70,14 +76,17 @@ import {
   type Task,
   type TaskList,
 } from './db/types';
+import { useLocalReminders } from './hooks/useLocalReminders';
 import { useTheme } from './hooks/useTheme';
 import { triggerHaptic } from './utils/haptics';
 import { BackupModal } from './components/BackupModal';
 import { BoxCard } from './components/BoxCard';
 import { BoxFormModal } from './components/BoxFormModal';
 import { Modal } from './components/Modal';
+import { NavigationDrawer } from './components/NavigationDrawer';
 import { OverdueBanner } from './components/OverdueBanner';
 import { QuickDumpBar } from './components/QuickDumpBar';
+import { SearchOverlay } from './components/SearchOverlay';
 import { TaskFormModal } from './components/TaskFormModal';
 import { Toast } from './components/Toast';
 
@@ -141,6 +150,7 @@ export default function App() {
   const toastTimerRef = useRef<number | null>(null);
   const popTimerRef = useRef<number | null>(null);
 
+  const [currentView, setCurrentView] = useState<'home' | 'archived'>('home');
   const [selectedListId, setSelectedListId] = useState<number | null>(null);
   const [detailQuickInput, setDetailQuickInput] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -148,7 +158,12 @@ export default function App() {
     null
   );
 
-  // Modos de reordenação por botões + Drag-and-drop (touch & mouse)
+  // Menu Hambúrguer, Busca e Menu de Opções da Caixa (⋮)
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [menuList, setMenuList] = useState<TaskList | null>(null);
+
+  // Modos de reordenação + Drag-and-drop de ações
   const [reorderBoxesMode, setReorderBoxesMode] = useState(false);
   const [reorderTasksMode, setReorderTasksMode] = useState(false);
   const [dragState, setDragState] = useState<DragState>(null);
@@ -173,7 +188,7 @@ export default function App() {
     toastTimerRef.current = window.setTimeout(() => {
       setToastMessage(null);
       toastTimerRef.current = null;
-    }, 2600);
+    }, 2800);
   }, []);
 
   useEffect(() => {
@@ -195,9 +210,11 @@ export default function App() {
     const action = params.get('action');
     if (action) {
       if (action === 'quick-dump') {
+        setCurrentView('home');
         setSelectedListId(null);
         window.setTimeout(() => quickDumpInputRef.current?.focus(), 120);
       } else if (action === 'new-box') {
+        setCurrentView('home');
         setSelectedListId(null);
         setEditingList(null);
         setBoxModalOpen(true);
@@ -213,29 +230,62 @@ export default function App() {
   const rawLists = useLiveQuery(() => db.lists.toArray(), []);
   const allTasks = useLiveQuery(() => db.tasks.toArray(), []);
 
-  const lists = useMemo(() => sortLists(rawLists ?? []), [rawLists]);
-  const listsRef = useRef<TaskList[]>(lists);
-  listsRef.current = lists;
+  const allSortedLists = useMemo(() => sortLists(rawLists ?? []), [rawLists]);
+
+  const activeLists = useMemo(
+    () => allSortedLists.filter((l) => !l.archivedAt),
+    [allSortedLists]
+  );
+
+  const archivedLists = useMemo(
+    () => allSortedLists.filter((l) => Boolean(l.archivedAt)),
+    [allSortedLists]
+  );
+
+  const activeListsRef = useRef<TaskList[]>(activeLists);
+  activeListsRef.current = activeLists;
+
+  const listNamesById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const l of allSortedLists) {
+      if (l.id != null) map.set(l.id, l.name);
+    }
+    return map;
+  }, [allSortedLists]);
+
+  const activeListIdSet = useMemo(() => {
+    const set = new Set<number>();
+    for (const l of activeLists) {
+      if (l.id != null) set.add(l.id);
+    }
+    return set;
+  }, [activeLists]);
+
+  const {
+    supported: remindersSupported,
+    enabled: remindersEnabled,
+    toggleReminders,
+  } = useLocalReminders(allTasks, listNamesById, showToast);
 
   const inboxList = useMemo(
-    () => lists.find((l) => l.isInbox) ?? null,
-    [lists]
+    () => activeLists.find((l) => l.isInbox) ?? null,
+    [activeLists]
   );
 
   const activeList = useMemo(
-    () => lists.find((l) => l.id === selectedListId) ?? null,
-    [lists, selectedListId]
+    () => allSortedLists.find((l) => l.id === selectedListId) ?? null,
+    [allSortedLists, selectedListId]
   );
 
   const listSortModeMap = useMemo(() => {
     const map = new Map<number, ListSortMode>();
-    for (const list of lists) {
+    for (const list of allSortedLists) {
       if (list.id != null) {
         map.set(list.id, list.sortMode ?? 'auto');
       }
     }
     return map;
-  }, [lists]);
+  }, [allSortedLists]);
 
   const tasksByList = useMemo(() => {
     const map = new Map<number, { pending: Task[]; completed: Task[] }>();
@@ -279,9 +329,13 @@ export default function App() {
   const totalOverdueCount = useMemo(
     () =>
       (allTasks ?? []).filter(
-        (t) => !t.completed && Boolean(t.dueDate) && t.dueDate! < todayStr
+        (t) =>
+          activeListIdSet.has(t.listId) &&
+          !t.completed &&
+          Boolean(t.dueDate) &&
+          t.dueDate! < todayStr
       ).length,
-    [allTasks, todayStr]
+    [allTasks, activeListIdSet, todayStr]
   );
 
   const activeOverdueCount = useMemo(
@@ -301,8 +355,8 @@ export default function App() {
 
   const reorderBoundsByListId = useMemo(() => {
     const map = new Map<number, { canPrev: boolean; canNext: boolean }>();
-    const pinnedNonInbox = lists.filter((l) => !l.isInbox && l.pinned);
-    const regularLists = lists.filter((l) => !l.isInbox && !l.pinned);
+    const pinnedNonInbox = activeLists.filter((l) => !l.isInbox && l.pinned);
+    const regularLists = activeLists.filter((l) => !l.isInbox && !l.pinned);
 
     for (const group of [pinnedNonInbox, regularLists]) {
       group.forEach((item, index) => {
@@ -315,7 +369,7 @@ export default function App() {
       });
     }
     return map;
-  }, [lists]);
+  }, [activeLists]);
 
   const detailParsedLines = useMemo(
     () => parseBatchLines(detailQuickInput),
@@ -328,7 +382,7 @@ export default function App() {
     return Math.min(Math.max(rawCount, 2), 6);
   }, [detailQuickInput]);
 
-  // Listeners globais para Drag-and-Drop via Pointer Events (Mobile Touch + Desktop Mouse)
+  // Listeners globais para Drag-and-Drop de ações (Mobile Touch + Desktop Mouse)
   const isDragging = dragState !== null;
 
   useEffect(() => {
@@ -362,8 +416,6 @@ export default function App() {
       setDragState(null);
       if (cancelled || !current) return;
 
-      // Arrastando uma ação:
-      // 1) Soltar em outra caixa -> move a ação para essa caixa
       if (
         current.hoverListId != null &&
         current.hoverListId !== current.sourceListId
@@ -372,14 +424,13 @@ export default function App() {
         if (moved) {
           triggerHaptic('check');
           const targetName =
-            listsRef.current.find((l) => l.id === current.hoverListId)?.name ??
-            'outra caixa';
+            activeListsRef.current.find((l) => l.id === current.hoverListId)
+              ?.name ?? 'outra caixa';
           showToast(`Ação movida para ${targetName}`);
         }
         return;
       }
 
-      // 2) Soltar sobre outra ação na mesma caixa -> reordena
       if (
         current.hoverTaskId != null &&
         current.hoverTaskId !== current.taskId
@@ -469,6 +520,22 @@ export default function App() {
     );
   };
 
+  const handleArchiveList = async (list: TaskList) => {
+    if (list.id == null || list.isInbox) return;
+    await archiveList(list.id);
+    if (selectedListId === list.id) {
+      setSelectedListId(null);
+      setReorderTasksMode(false);
+    }
+    showToast(`Caixa "${list.name}" arquivada`);
+  };
+
+  const handleUnarchiveList = async (list: TaskList) => {
+    if (list.id == null) return;
+    await unarchiveList(list.id);
+    showToast(`Caixa "${list.name}" restaurada`);
+  };
+
   const handleResetChecklist = async (list: TaskList) => {
     if (list.id == null) return;
     const count = await resetListChecklist(list.id);
@@ -512,6 +579,11 @@ export default function App() {
 
   const handleMoveBox = async (listId: number, direction: 'up' | 'down') => {
     await reorderList(listId, direction);
+  };
+
+  const handleToggleReminders = async () => {
+    const result = await toggleReminders();
+    showToast(result.message);
   };
 
   // Handlers de Ação
@@ -562,7 +634,7 @@ export default function App() {
     energy: EnergyLevel | null;
   }) => {
     const targetName =
-      lists.find((l) => l.id === data.listId)?.name ?? 'sua caixa';
+      allSortedLists.find((l) => l.id === data.listId)?.name ?? 'sua caixa';
 
     if (editingTask?.id != null) {
       const moved = editingTask.listId !== data.listId;
@@ -580,13 +652,13 @@ export default function App() {
 
   const handleQuickAddInCard = async (listId: number, title: string) => {
     await createTask({ listId, title, priority: 'media', dueDate: null });
-    const targetName = lists.find((l) => l.id === listId)?.name ?? 'lista';
+    const targetName = activeLists.find((l) => l.id === listId)?.name ?? 'lista';
     showToast(`Ação salva em ${targetName}`);
   };
 
   const handleDumpTasks = async (listId: number, rawText: string) => {
     const count = await createTasksBatch(listId, rawText, 'media', null);
-    const targetName = lists.find((l) => l.id === listId)?.name ?? 'Despejo';
+    const targetName = activeLists.find((l) => l.id === listId)?.name ?? 'Despejo';
     if (count > 0) {
       showToast(
         count === 1
@@ -839,18 +911,30 @@ export default function App() {
   };
 
   const ActiveIcon = activeList ? getBoxIcon(activeList.icon) : null;
-  const totalPending = (allTasks ?? []).filter((t) => !t.completed).length;
-  const showStarters = rawLists !== undefined && lists.length <= 1;
+  const totalPending = (allTasks ?? []).filter(
+    (t) => activeListIdSet.has(t.listId) && !t.completed
+  ).length;
+  const showStarters = rawLists !== undefined && activeLists.length <= 1;
   const canReorderAnyBox = useMemo(() => {
-    const pinnedCount = lists.filter((l) => !l.isInbox && l.pinned).length;
-    const regularCount = lists.filter((l) => !l.isInbox && !l.pinned).length;
+    const pinnedCount = activeLists.filter((l) => !l.isInbox && l.pinned).length;
+    const regularCount = activeLists.filter(
+      (l) => !l.isInbox && !l.pinned
+    ).length;
     return pinnedCount > 1 || regularCount > 1;
-  }, [lists]);
+  }, [activeLists]);
 
   const otherListsForDrop = useMemo(() => {
     if (!activeList?.id) return [];
-    return lists.filter((l) => l.id !== activeList.id);
-  }, [lists, activeList]);
+    return activeLists.filter((l) => l.id !== activeList.id);
+  }, [activeLists, activeList]);
+
+  const menuListHasChecked = useMemo(() => {
+    if (!menuList?.id) return false;
+    const st = tasksByList.get(menuList.id);
+    if (!st) return false;
+    if (st.completed.length > 0) return true;
+    return st.pending.some((t) => (t.subtasks ?? []).some((s) => s.completed));
+  }, [menuList, tasksByList]);
 
   return (
     <div className={`app-shell ${isDragging ? 'is-dragging-global' : ''}`}>
@@ -861,7 +945,7 @@ export default function App() {
               <button
                 type="button"
                 className="icon-btn"
-                aria-label="Voltar para todas as caixas"
+                aria-label="Voltar"
                 onClick={() => {
                   setSelectedListId(null);
                   setDetailQuickInput('');
@@ -888,32 +972,33 @@ export default function App() {
               </div>
             </>
           ) : (
-            <div className="header-title-wrap">
-              <h1 className="header-title">ToDoMind</h1>
-              <span className="header-subtitle">
-                {lists.length} caixa{lists.length === 1 ? '' : 's'} ·{' '}
-                {totalPending}{' '}
-                {totalPending === 1 ? 'ação pendente' : 'ações pendentes'}
-              </span>
-            </div>
+            <>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Abrir menu"
+                title="Menu"
+                onClick={() => setDrawerOpen(true)}
+              >
+                <Menu size={20} />
+              </button>
+              <div className="header-title-wrap">
+                <h1 className="header-title">
+                  {currentView === 'archived' ? 'Arquivadas' : 'ToDoMind'}
+                </h1>
+                <span className="header-subtitle">
+                  {currentView === 'archived'
+                    ? `${archivedLists.length} caixa${archivedLists.length === 1 ? '' : 's'} pausada${archivedLists.length === 1 ? '' : 's'}`
+                    : `${activeLists.length} caixa${activeLists.length === 1 ? '' : 's'} · ${totalPending} ${totalPending === 1 ? 'ação pendente' : 'ações pendentes'}`}
+                </span>
+              </div>
+            </>
           )}
         </div>
 
         <div className="header-right">
           {activeList ? (
             <>
-              {activeList.isReusable && (
-                <button
-                  type="button"
-                  className="icon-btn"
-                  disabled={!activeHasCheckedItems}
-                  aria-label="Resetar checklist desta caixa"
-                  title="Resetar checklist"
-                  onClick={() => void handleResetChecklist(activeList)}
-                >
-                  <RotateCcw size={18} />
-                </button>
-              )}
               {activeTasksState.pending.length > 1 && (
                 <button
                   type="button"
@@ -932,184 +1017,224 @@ export default function App() {
               <button
                 type="button"
                 className="icon-btn"
-                aria-label="Editar caixa"
-                title="Editar caixa"
-                onClick={() => openEditBox(activeList)}
+                aria-label="Opções da caixa"
+                title="Opções da caixa"
+                onClick={() => setMenuList(activeList)}
               >
-                <Pencil size={18} />
+                <MoreVertical size={19} />
               </button>
-              {!activeList.isInbox && (
-                <button
-                  type="button"
-                  className="icon-btn danger"
-                  aria-label="Excluir caixa"
-                  title="Excluir caixa"
-                  onClick={() => setListToDelete(activeList)}
-                >
-                  <Trash2 size={18} />
-                </button>
-              )}
             </>
           ) : (
-            <>
-              {canReorderAnyBox && (
-                <button
-                  type="button"
-                  className={`icon-btn ${reorderBoxesMode ? 'is-active' : ''}`}
-                  aria-label={
-                    reorderBoxesMode
-                      ? 'Concluir reordenação de caixas'
-                      : 'Reordenar caixas'
-                  }
-                  title={
-                    reorderBoxesMode
-                      ? 'Concluir reordenação'
-                      : 'Reordenar caixas'
-                  }
-                  onClick={() => setReorderBoxesMode((prev) => !prev)}
-                >
-                  {reorderBoxesMode ? <Check size={19} /> : <ArrowUpDown size={18} />}
-                </button>
-              )}
-              <button
-                type="button"
-                className="icon-btn"
-                aria-label="Backup local em JSON"
-                title="Backup JSON"
-                onClick={() => setBackupModalOpen(true)}
-              >
-                <HardDriveDownload size={19} />
-              </button>
-            </>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Buscar e filtrar"
+              title="Buscar e filtrar"
+              onClick={() => setSearchOpen(true)}
+            >
+              <Search size={19} />
+            </button>
           )}
-
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Alternar tema claro e escuro"
-            title="Alternar tema"
-            onClick={toggleTheme}
-          >
-            {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
-          </button>
         </div>
       </header>
 
       <main className="content">
         {!activeList ? (
-          <>
-            <QuickDumpBar
-              lists={lists}
-              inboxId={inboxList?.id ?? null}
-              inputRef={quickDumpInputRef}
-              onDump={handleDumpTasks}
-            />
+          currentView === 'archived' ? (
+            <section className="archived-stack" aria-label="Caixas arquivadas">
+              {archivedLists.length > 0 ? (
+                archivedLists.map((list) => {
+                  const Icon = getBoxIcon(list.icon);
+                  const state =
+                    list.id != null
+                      ? tasksByList.get(list.id) ?? { pending: [], completed: [] }
+                      : { pending: [], completed: [] };
+                  const totalItems = state.pending.length + state.completed.length;
 
-            <OverdueBanner
-              count={totalOverdueCount}
-              onBringToToday={() => void handleRescheduleOverdue('today')}
-              onMoveToTomorrow={() => void handleRescheduleOverdue('tomorrow')}
-            />
+                  return (
+                    <div
+                      key={list.id}
+                      className="card archived-card"
+                      data-color={list.color || 'blue'}
+                    >
+                      <div
+                        className="archived-card-main"
+                        onClick={() => list.id != null && setSelectedListId(list.id)}
+                      >
+                        <span className="box-icon-pill" aria-hidden="true">
+                          <Icon size={14} />
+                        </span>
+                        <div className="card-main">
+                          <p className="task-title" style={{ marginBottom: 2 }}>
+                            {list.name}
+                          </p>
+                          <span className="box-card-meta">
+                            {state.pending.length} pendente
+                            {state.pending.length === 1 ? '' : 's'} · {totalItems}{' '}
+                            no total
+                          </span>
+                        </div>
+                      </div>
 
-            {reorderBoxesMode && (
-              <div className="reorder-banner">
-                <span>
-                  Use as setas <strong>‹ ›</strong> nas caixas para reorganizar a
-                  ordem.
-                </span>
+                      <div className="card-actions">
+                        <button
+                          type="button"
+                          className="btn-sort-pill"
+                          onClick={() => void handleUnarchiveList(list)}
+                        >
+                          <ArchiveRestore size={13} />
+                          <span>Restaurar</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn danger"
+                          aria-label={`Excluir caixa ${list.name}`}
+                          onClick={() => setListToDelete(list)}
+                        >
+                          <Trash2 size={17} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="empty-state">
+                  <p>Nenhuma caixa arquivada.</p>
+                  <p>
+                    Você pode arquivar caixas pausadas pelo menu <strong>⋮</strong>{' '}
+                    para limpar a tela inicial sem perder o histórico.
+                  </p>
+                </div>
+              )}
+            </section>
+          ) : (
+            <>
+              <QuickDumpBar
+                lists={activeLists}
+                inboxId={inboxList?.id ?? null}
+                inputRef={quickDumpInputRef}
+                onDump={handleDumpTasks}
+              />
+
+              <OverdueBanner
+                count={totalOverdueCount}
+                onBringToToday={() => void handleRescheduleOverdue('today')}
+                onMoveToTomorrow={() => void handleRescheduleOverdue('tomorrow')}
+              />
+
+              {reorderBoxesMode && (
+                <div className="reorder-banner">
+                  <span>
+                    Use as setas <strong>‹ ›</strong> nas caixas para reorganizar
+                    a ordem.
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-inline-done"
+                    onClick={() => setReorderBoxesMode(false)}
+                  >
+                    Concluir
+                  </button>
+                </div>
+              )}
+
+              {showStarters && (
+                <section className="starter-strip" aria-label="Sugestões de caixas">
+                  <span className="starter-label">
+                    Criar caixas rápidas para organizar sua rotina:
+                  </span>
+                  <div className="starter-chips">
+                    {STARTER_BOXES.map((starter) => {
+                      const StarterIcon = getBoxIcon(starter.icon);
+                      return (
+                        <button
+                          key={starter.name}
+                          type="button"
+                          className="starter-chip"
+                          data-color={starter.color}
+                          onClick={() => void handleCreateStarterBox(starter)}
+                        >
+                          <StarterIcon size={13} />
+                          <span>+ {starter.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              <section className="boxes-grid" aria-label="Suas caixas">
+                {activeLists.map((list) => {
+                  const state =
+                    list.id != null
+                      ? tasksByList.get(list.id) ?? { pending: [], completed: [] }
+                      : { pending: [], completed: [] };
+                  const bounds =
+                    list.id != null
+                      ? reorderBoundsByListId.get(list.id) ?? {
+                          canPrev: false,
+                          canNext: false,
+                        }
+                      : { canPrev: false, canNext: false };
+
+                  const isTaskDropTarget =
+                    dragState?.kind === 'task' &&
+                    dragState.hoverListId === list.id &&
+                    dragState.sourceListId !== list.id;
+
+                  const dropLabel = isTaskDropTarget
+                    ? `Mover para ${list.name}`
+                    : null;
+
+                  return (
+                    <BoxCard
+                      key={list.id}
+                      list={list}
+                      pendingTasks={state.pending}
+                      completedCount={state.completed.length}
+                      reorderMode={reorderBoxesMode}
+                      canMovePrev={bounds.canPrev}
+                      canMoveNext={bounds.canNext}
+                      isDropTarget={isTaskDropTarget}
+                      dropLabel={dropLabel}
+                      draggingTaskId={
+                        dragState?.kind === 'task' ? dragState.taskId : null
+                      }
+                      justCompletedTaskId={justCompletedTaskId}
+                      onOpen={(id) => {
+                        setReorderBoxesMode(false);
+                        setSelectedListId(id);
+                      }}
+                      onOpenMenu={(l) => setMenuList(l)}
+                      onMovePrev={(id) => void handleMoveBox(id, 'up')}
+                      onMoveNext={(id) => void handleMoveBox(id, 'down')}
+                      onStartTaskDrag={handleStartTaskDrag}
+                      onToggleTask={(taskId, completed) =>
+                        void handleToggleTask(taskId, completed)
+                      }
+                      onQuickAdd={handleQuickAddInCard}
+                    />
+                  );
+                })}
+              </section>
+            </>
+          )
+        ) : (
+          <div className="detail-stack">
+            {activeList.archivedAt && (
+              <div className="reusable-bar">
+                <span>Esta caixa está arquivada</span>
                 <button
                   type="button"
-                  className="btn-inline-done"
-                  onClick={() => setReorderBoxesMode(false)}
+                  className="btn-reset-checklist"
+                  onClick={() => void handleUnarchiveList(activeList)}
                 >
-                  Concluir
+                  <ArchiveRestore size={13} />
+                  <span>Restaurar</span>
                 </button>
               </div>
             )}
 
-            {showStarters && (
-              <section className="starter-strip" aria-label="Sugestões de caixas">
-                <span className="starter-label">
-                  Criar caixas rápidas para organizar sua rotina:
-                </span>
-                <div className="starter-chips">
-                  {STARTER_BOXES.map((starter) => {
-                    const StarterIcon = getBoxIcon(starter.icon);
-                    return (
-                      <button
-                        key={starter.name}
-                        type="button"
-                        className="starter-chip"
-                        data-color={starter.color}
-                        onClick={() => void handleCreateStarterBox(starter)}
-                      >
-                        <StarterIcon size={13} />
-                        <span>+ {starter.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-
-            <section className="boxes-grid" aria-label="Suas caixas">
-              {lists.map((list) => {
-                const state =
-                  list.id != null
-                    ? tasksByList.get(list.id) ?? { pending: [], completed: [] }
-                    : { pending: [], completed: [] };
-                const bounds =
-                  list.id != null
-                    ? reorderBoundsByListId.get(list.id) ?? {
-                        canPrev: false,
-                        canNext: false,
-                      }
-                    : { canPrev: false, canNext: false };
-
-                const isTaskDropTarget =
-                  dragState?.kind === 'task' &&
-                  dragState.hoverListId === list.id &&
-                  dragState.sourceListId !== list.id;
-
-                const dropLabel = isTaskDropTarget
-                  ? `Mover para ${list.name}`
-                  : null;
-
-                return (
-                  <BoxCard
-                    key={list.id}
-                    list={list}
-                    pendingTasks={state.pending}
-                    completedCount={state.completed.length}
-                    reorderMode={reorderBoxesMode}
-                    canMovePrev={bounds.canPrev}
-                    canMoveNext={bounds.canNext}
-                    isDropTarget={isTaskDropTarget}
-                    dropLabel={dropLabel}
-                    draggingTaskId={
-                      dragState?.kind === 'task' ? dragState.taskId : null
-                    }
-                    justCompletedTaskId={justCompletedTaskId}
-                    onOpen={(id) => {
-                      setReorderBoxesMode(false);
-                      setSelectedListId(id);
-                    }}
-                    onEdit={openEditBox}
-                    onTogglePin={handleTogglePin}
-                    onMovePrev={(id) => void handleMoveBox(id, 'up')}
-                    onMoveNext={(id) => void handleMoveBox(id, 'down')}
-                    onStartTaskDrag={handleStartTaskDrag}
-                    onToggleTask={(taskId, completed) =>
-                      void handleToggleTask(taskId, completed)
-                    }
-                    onQuickAdd={handleQuickAddInCard}
-                  />
-                );
-              })}
-            </section>
-          </>
-        ) : (
-          <div className="detail-stack">
             {/* Faixa de destino ao arrastar uma ação dentro da caixa */}
             {dragState?.kind === 'task' && otherListsForDrop.length > 0 && (
               <section
@@ -1267,15 +1392,164 @@ export default function App() {
 
       <Toast message={toastMessage} />
 
-      <button
-        type="button"
-        className="fab"
-        aria-label={activeList ? 'Nova ação detalhada' : 'Nova caixa'}
-        title={activeList ? 'Nova ação detalhada' : 'Nova caixa'}
-        onClick={activeList ? openCreateTask : openCreateBox}
+      {(activeList || currentView === 'home') && (
+        <button
+          type="button"
+          className="fab"
+          aria-label={activeList ? 'Nova ação detalhada' : 'Nova caixa'}
+          title={activeList ? 'Nova ação detalhada' : 'Nova caixa'}
+          onClick={activeList ? openCreateTask : openCreateBox}
+        >
+          <Plus size={24} />
+        </button>
+      )}
+
+      {/* Menu Hambúrguer (Drawer Lateral) */}
+      <NavigationDrawer
+        open={drawerOpen}
+        currentView={currentView}
+        archivedCount={archivedLists.length}
+        canReorderBoxes={canReorderAnyBox}
+        reorderBoxesMode={reorderBoxesMode}
+        remindersEnabled={remindersEnabled}
+        remindersSupported={remindersSupported}
+        theme={theme}
+        onClose={() => setDrawerOpen(false)}
+        onSelectHome={() => {
+          setCurrentView('home');
+          setSelectedListId(null);
+        }}
+        onSelectArchived={() => {
+          setCurrentView('archived');
+          setSelectedListId(null);
+          setReorderBoxesMode(false);
+        }}
+        onToggleReorderBoxes={() => {
+          setCurrentView('home');
+          setSelectedListId(null);
+          setReorderBoxesMode((prev) => !prev);
+        }}
+        onToggleReminders={() => void handleToggleReminders()}
+        onToggleTheme={toggleTheme}
+        onOpenBackup={() => setBackupModalOpen(true)}
+      />
+
+      {/* Busca Global & Filtros Rápidos */}
+      <SearchOverlay
+        open={searchOpen}
+        lists={allSortedLists}
+        tasks={allTasks ?? []}
+        onClose={() => setSearchOpen(false)}
+        onToggleTask={(taskId, completed) =>
+          void handleToggleTask(taskId, completed)
+        }
+        onEditTask={(task) => openEditTask(task)}
+        onOpenBox={(listId) => {
+          setCurrentView('home');
+          setSelectedListId(listId);
+        }}
+      />
+
+      {/* Menu de Opções da Caixa (⋮) */}
+      <Modal
+        open={Boolean(menuList)}
+        title={menuList?.name ?? 'Opções da caixa'}
+        onClose={() => setMenuList(null)}
       >
-        <Plus size={24} />
-      </button>
+        {menuList && (
+          <div className="action-sheet-list">
+            {!menuList.isInbox && !menuList.archivedAt && (
+              <button
+                type="button"
+                className="action-sheet-item"
+                onClick={() => {
+                  const target = menuList;
+                  setMenuList(null);
+                  void handleTogglePin(target);
+                }}
+              >
+                {menuList.pinned ? <PinOff size={17} /> : <Pin size={17} />}
+                <span>
+                  {menuList.pinned ? 'Desafixar do topo' : 'Fixar no topo'}
+                </span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="action-sheet-item"
+              onClick={() => {
+                const target = menuList;
+                setMenuList(null);
+                openEditBox(target);
+              }}
+            >
+              <Pencil size={17} />
+              <span>Editar caixa (nome, cor, ícone)</span>
+            </button>
+
+            {menuList.isReusable && (
+              <button
+                type="button"
+                className="action-sheet-item"
+                disabled={!menuListHasChecked}
+                onClick={() => {
+                  const target = menuList;
+                  setMenuList(null);
+                  void handleResetChecklist(target);
+                }}
+              >
+                <RotateCcw size={17} />
+                <span>Resetar checklist</span>
+              </button>
+            )}
+
+            {!menuList.isInbox &&
+              (menuList.archivedAt ? (
+                <button
+                  type="button"
+                  className="action-sheet-item"
+                  onClick={() => {
+                    const target = menuList;
+                    setMenuList(null);
+                    void handleUnarchiveList(target);
+                  }}
+                >
+                  <ArchiveRestore size={17} />
+                  <span>Restaurar caixa</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="action-sheet-item"
+                  onClick={() => {
+                    const target = menuList;
+                    setMenuList(null);
+                    void handleArchiveList(target);
+                  }}
+                >
+                  <Archive size={17} />
+                  <span>Arquivar caixa</span>
+                </button>
+              ))}
+
+            {!menuList.isInbox && (
+              <button
+                type="button"
+                className="action-sheet-item is-danger"
+                onClick={() => {
+                  const target = menuList;
+                  setMenuList(null);
+                  setListToDelete(target);
+                }}
+              >
+                <Trash2 size={17} />
+                <span>Excluir caixa</span>
+              </button>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* Modal Criar / Editar Caixa */}
       <BoxFormModal
@@ -1318,7 +1592,7 @@ export default function App() {
       <TaskFormModal
         open={taskModalOpen}
         initialTask={editingTask}
-        lists={lists}
+        lists={activeLists}
         defaultListId={activeList?.id ?? inboxList?.id ?? null}
         onClose={() => setTaskModalOpen(false)}
         onSubmit={handleSaveTask}
@@ -1327,7 +1601,7 @@ export default function App() {
       {/* Modal Backup Local JSON */}
       <BackupModal
         open={backupModalOpen}
-        listsCount={lists.length}
+        listsCount={allSortedLists.length}
         tasksCount={(allTasks ?? []).length}
         onClose={() => setBackupModalOpen(false)}
       />

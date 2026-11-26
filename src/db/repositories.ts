@@ -153,6 +153,26 @@ export async function toggleListPinned(
   });
 }
 
+export async function archiveList(id: number): Promise<void> {
+  const list = await db.lists.get(id);
+  if (list?.isInbox) {
+    throw new Error('A caixa Despejo não pode ser arquivada.');
+  }
+  const now = Date.now();
+  await db.lists.update(id, {
+    archivedAt: now,
+    pinned: false,
+    updatedAt: now,
+  });
+}
+
+export async function unarchiveList(id: number): Promise<void> {
+  await db.lists.update(id, {
+    archivedAt: null,
+    updatedAt: Date.now(),
+  });
+}
+
 export async function setListSortMode(
   id: number,
   sortMode: ListSortMode

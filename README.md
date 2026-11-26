@@ -11,20 +11,19 @@ Veja o plano completo das próximas versões em [ROADMAP.md](./ROADMAP.md).
 - CSS puro com tema claro/escuro automático + alternância manual
 - Lucide React (ícones)
 
-## Funcionalidades (v2.0)
-- **Visual em Caixas (Grid Bento uniforme):** várias caixas com altura fixa na tela inicial exibindo os 2 primeiros itens pendentes, cor, ícone, fixação no topo e reordenação por **arrastar e soltar** (ou setas)
-- **Arrastar e soltar (touch + mouse):** arraste caixas para reordenar e arraste ações direto de uma caixa para outra (tanto na tela inicial quanto dentro de uma caixa aberta)
+## Funcionalidades (v2.5)
+- **Interface limpa com Menu Hambúrguer (`☰`) e menu `⋮` nas caixinhas:** tela inicial minimalista (apenas `☰` e `🔍` no topo), reunindo reordenação, lembretes, arquivadas, tema e backup no drawer lateral
+- **Visual em Caixas (Grid Bento uniforme):** caixas com altura fixa exibindo o nome completo e os 2 primeiros itens pendentes, cor, ícone, fixação no topo e arquivamento de caixas pausadas
+- **Busca global instantânea (`🔍`) & Filtros rápidos:** pesquise em todas as caixas, notas e micropassos e filtre por tempo livre (`Até 5/15/30 min`), energia ou prioridade
 - **Despejo Rápido multi-linha ("Tirar da cabeça"):** barra fixa no topo com caixa **Despejo (Inbox)** permanente onde pular linha (`Enter`) cria várias ações de uma única vez
+- **Arrastar e soltar (touch + mouse):** arraste ações de uma caixa para outra (na tela inicial ou pela barra destino dentro da caixa) e reordene arrastando
 - **Recursos pensados para TDAH:**
   - **Micropassos / Subtarefas** com barra de progresso interativa em cada ação
   - **Rotinas reutilizáveis** com botão *"Resetar checklist"* (ideal para Mercado, Casa, Mala)
   - **Atrasos sem culpa** com botões de 1 toque *"Trazer para hoje"* e *"Adiar p/ amanhã"*
-  - **Etiquetas de tempo estimado** (`2 min` a `1h`), **nível de energia** e **horário opcional**
+  - **Etiquetas de tempo estimado** (`2 min` a `1h`), **nível de energia**, **horário opcional** e **lembretes locais** (Notification API)
   - **Feedback tátil leve** (`navigator.vibrate`) e micro-animação ao concluir ações
-- **Detalhes completos & Notificações (toast):** descrição/nota opcional acima do vencimento, prioridade, ordenação manual ou automática e feedback imediato ao salvar/mover
-- **Backup local em JSON:** exporte e importe suas caixas e ações (mesclando ou substituindo dados)
-- **Atalhos PWA no Android:** segure o ícone do app para abrir direto em *Despejo Rápido* ou *Nova Caixa*
-- **Tema claro e escuro:** sincronizado com o sistema e com preferência salva localmente
+- **Backup local em JSON & PWA instalável:** exporte/importe dados e use os atalhos no ícone do app Android (*Despejo Rápido* e *Nova Caixa*)
 
 ## Como rodar localmente
 

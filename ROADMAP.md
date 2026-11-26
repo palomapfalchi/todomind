@@ -1,6 +1,6 @@
 # Roadmap & TODO de Versões — ToDoMind
 
-Plano de evolução do **ToDoMind** com foco em organização visual em caixas, redução de atrito para pessoas neurodivergentes (especialmente TDAH) e sincronização futura com conta e Google Agenda.
+Plano de evolução do **ToDoMind** com foco em organização visual em caixas, redução de atrito para pessoas neurodivergentes (especialmente TDAH) e sincronização com conta por e-mail e Google Agenda.
 
 ---
 
@@ -42,31 +42,32 @@ Plano de evolução do **ToDoMind** com foco em organização visual em caixas, 
 - [x] **Atrasos sem culpa:** botão de 1 toque *"Trazer atrasadas para hoje"* ou *"Adiar para amanhã"*
 - [x] **Etiquetas de tempo e energia:** marcar ações rápidas (2 min / 5 min / 15 min / 30 min / 1h) e nível de energia
 - [x] Feedback tátil leve (`navigator.vibrate`) e micro-animação ao concluir ações
-- [x] Arrastar e soltar (drag-and-drop) para reordenar caixas e mover ações entre caixas (funciona no celular e no PC)
+- [x] Arrastar e soltar (drag-and-drop) para mover ações entre caixas e reordenar ações (touch + mouse)
 
 ---
 
-## v2.5 — Busca, Organização & Lembretes (Próxima)
-- [ ] Busca global instantânea entre todas as caixas e ações
-- [ ] Arquivar/recolher caixas pausadas sem excluir histórico
-- [ ] Filtros rápidos por tempo livre, nível de energia ou prioridade
-- [ ] Lembretes locais (Notification API / Service Worker) para ações com horário definido (`dueTime`)
-- [ ] Adicionar horário opcional junto do calendário ao criar uma ação
+## v2.5 — Menu Limpo (`☰`), Busca, Arquivamento & Lembretes (Concluída)
+- [x] **Menu Hambúrguer (`☰`):** drawer lateral concentrando visões, reordenação de caixas, lembretes, tema e backup JSON (mantendo a tela inicial limpa com apenas `☰` e `🔍`)
+- [x] **Menu compacto (`⋮`) em cada caixinha:** ações de fixar, editar, resetar checklist, arquivar e excluir sem poluir o card
+- [x] **Busca global instantânea (`🔍`):** pesquisa em tempo real por caixas, títulos, descrições e micropassos
+- [x] **Filtros rápidos:** filtrar por tempo livre (`Até 5/15/30 min`), nível de energia ou prioridade
+- [x] **Arquivar caixas pausadas:** ocultar caixas da tela inicial preservando o histórico, com tela dedicada para restaurar
+- [x] **Horário opcional + Lembretes locais:** campo `dueTime` ao lado do vencimento e alertas via Notification API / Service Worker
 
 ---
 
-## v3.0 — Login por E-mail & Nuvem Offline-First
+## v3.0 — Login por E-mail & Nuvem Offline-First (Próxima)
 - [ ] Migration Dexie `v5` (`uuid`, `syncStatus`, `deletedAt` para soft-delete, `lastSyncedAt`)
-- [ ] Autenticação com **e-mail** (Magic Link ou e-mail/senha) e login com Google (via Supabase ou Firebase)
+- [ ] Autenticação com **e-mail** (Magic Link ou e-mail/senha) e login com Google (via Supabase ou Firebase) integrado ao Menu `☰`
 - [ ] Migração automática dos dados locais do dispositivo ao criar conta
 - [ ] Sincronização em segundo plano entre celular e computador mantendo a interface 100% instantânea offline
 
 ---
 
-## v4.0 — Integração com Google Agenda
-- [ ] Conexão OAuth com Google Calendar via Edge/Cloud Functions (tokens protegidos no backend)
+## v4.0 — Integração com Google Agenda (Na sequência)
+- [ ] Conexão OAuth com Google Calendar via Edge/Cloud Functions (tokens protegidos no backend) acessível pelo Menu `☰`
 - [ ] Sincronização bidirecional seletiva: ações com data + horário (ou de caixas como *Compromissos*) criam/atualizam eventos no Google Agenda
-- [ ] Caixa especial **"Agenda de Hoje"** dentro do ToDoMind exibindo compromissos do Google Calendar
+- [ ] Visão/Caixa especial **"Agenda de Hoje"** dentro do ToDoMind exibindo compromissos do Google Calendar
 - [ ] *Time-blocking* em 1 toque: agendar uma tarefa diretamente em um bloco de horário no calendário
 
 ---
