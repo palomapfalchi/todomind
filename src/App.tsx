@@ -1,13 +1,26 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowLeft,
+  ArrowUpDown,
   Calendar,
+  Check,
+  ChevronDown,
+  ChevronUp,
   CornerDownLeft,
   HardDriveDownload,
   Moon,
   Pencil,
   Plus,
+  Sparkles,
   Sun,
   Trash2,
 } from 'lucide-react';
@@ -21,6 +34,9 @@ import {
   deleteTask,
   ensureInboxList,
   parseBatchLines,
+  reorderList,
+  reorderTask,
+  setListSortMode,
   sortLists,
   sortTasks,
   toggleListPinned,
@@ -32,6 +48,7 @@ import {
   PRIORITY_LABEL,
   type BoxColorId,
   type BoxIconId,
+  type ListSortMode,
   type Priority,
   type Task,
   type TaskList,
@@ -43,6 +60,7 @@ import { BoxFormModal } from './components/BoxFormModal';
 import { Modal } from './components/Modal';
 import { QuickDumpBar } from './components/QuickDumpBar';
 import { TaskFormModal } from './components/TaskFormModal';
+import { Toast } from './components/Toast';
 
 const STARTER_BOXES: Array<{
   name: string;
@@ -81,9 +99,15 @@ function formatDueDate(dateStr: string): { label: string; overdue: boolean } {
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const quickDumpInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
 
   const [selectedListId, setSelectedListId] = useState<number | null>(null);
   const [detailQuickInput, setDetailQuickInput] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Modos de reordenação
+  const [reorderBoxesMode, setReorderBoxesMode] = useState(false);
+  const [reorderTasksMode, setReorderTasksMode] = useState(false);
 
   // Modais de Caixa
   const [boxModalOpen, setBoxModalOpen] = useState(false);
@@ -94,6 +118,25 @@ export default function App() {
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [backupModalOpen, setBackupModalOpen] = useState(false);
+
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage(null);
+      toastTimerRef.current = null;
+    }, 2600);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
 
   // Garante a caixa permanente "Despejo" e trata atalhos PWA (?action=...)
   useEffect(() => {
@@ -133,6 +176,16 @@ export default function App() {
     [lists, selectedListId]
   );
 
+  const listSortModeMap = useMemo(() => {
+    const map = new Map<number, ListSortMode>();
+    for (const list of lists) {
+      if (list.id != null) {
+        map.set(list.id, list.sortMode ?? 'auto');
+      }
+    }
+    return map;
+  }, [lists]);
+
   const tasksByList = useMemo(() => {
     const map = new Map<number, { pending: Task[]; completed: Task[] }>();
     const grouped = new Map<number, Task[]>();
@@ -147,7 +200,8 @@ export default function App() {
     }
 
     for (const [listId, items] of grouped.entries()) {
-      const sorted = sortTasks(items);
+      const mode = listSortModeMap.get(listId) ?? 'auto';
+      const sorted = sortTasks(items, mode);
       map.set(listId, {
         pending: sorted.filter((t) => !t.completed),
         completed: sorted.filter((t) => t.completed),
@@ -155,7 +209,7 @@ export default function App() {
     }
 
     return map;
-  }, [allTasks]);
+  }, [allTasks, listSortModeMap]);
 
   const activeTasksState = useMemo(() => {
     if (selectedListId === null) {
@@ -169,10 +223,35 @@ export default function App() {
     );
   }, [tasksByList, selectedListId]);
 
+  // Grupos para saber quais caixas podem ser movidas para antes/depois
+  const reorderBoundsByListId = useMemo(() => {
+    const map = new Map<number, { canPrev: boolean; canNext: boolean }>();
+    const pinnedNonInbox = lists.filter((l) => !l.isInbox && l.pinned);
+    const regularLists = lists.filter((l) => !l.isInbox && !l.pinned);
+
+    for (const group of [pinnedNonInbox, regularLists]) {
+      group.forEach((item, index) => {
+        if (item.id != null) {
+          map.set(item.id, {
+            canPrev: index > 0,
+            canNext: index < group.length - 1,
+          });
+        }
+      });
+    }
+    return map;
+  }, [lists]);
+
   const detailParsedLines = useMemo(
     () => parseBatchLines(detailQuickInput),
     [detailQuickInput]
   );
+
+  const detailTextareaRows = useMemo(() => {
+    if (detailQuickInput.length === 0) return 2;
+    const rawCount = detailQuickInput.split(/\r?\n/).length;
+    return Math.min(Math.max(rawCount, 2), 6);
+  }, [detailQuickInput]);
 
   // Handlers de Caixa
   const openCreateBox = () => {
@@ -191,25 +270,36 @@ export default function App() {
     icon: BoxIconId;
     pinned: boolean;
   }) => {
-    if (editingList?.id) {
+    if (editingList?.id != null) {
       await updateList(editingList.id, data);
+      showToast(`Caixa "${data.name.trim()}" atualizada`);
     } else {
       await createList(data);
+      showToast(`Caixa "${data.name.trim()}" criada`);
     }
   };
 
   const handleTogglePin = async (list: TaskList) => {
-    if (!list.id || list.isInbox) return;
-    await toggleListPinned(list.id, !list.pinned);
+    if (list.id == null || list.isInbox) return;
+    const nextPinned = !list.pinned;
+    await toggleListPinned(list.id, nextPinned);
+    showToast(
+      nextPinned
+        ? `"${list.name}" fixada no topo`
+        : `"${list.name}" desafixada`
+    );
   };
 
   const handleConfirmDeleteList = async () => {
-    if (!listToDelete?.id) return;
+    if (listToDelete?.id == null) return;
+    const deletedName = listToDelete.name;
     if (selectedListId === listToDelete.id) {
       setSelectedListId(null);
+      setReorderTasksMode(false);
     }
     await deleteListCascade(listToDelete.id);
     setListToDelete(null);
+    showToast(`Caixa "${deletedName}" excluída`);
   };
 
   const handleCreateStarterBox = async (starter: {
@@ -223,6 +313,11 @@ export default function App() {
       icon: starter.icon,
       pinned: false,
     });
+    showToast(`Caixa "${starter.name}" criada`);
+  };
+
+  const handleMoveBox = async (listId: number, direction: 'up' | 'down') => {
+    await reorderList(listId, direction);
   };
 
   // Handlers de Ação
@@ -238,45 +333,94 @@ export default function App() {
 
   const handleSaveTask = async (data: {
     title: string;
+    description: string;
     priority: Priority;
     dueDate: string | null;
     listId: number;
   }) => {
-    if (editingTask?.id) {
+    const targetName =
+      lists.find((l) => l.id === data.listId)?.name ?? 'sua caixa';
+
+    if (editingTask?.id != null) {
+      const moved = editingTask.listId !== data.listId;
       await updateTask(editingTask.id, data);
+      showToast(
+        moved ? `Ação movida para ${targetName}` : `Ação atualizada em ${targetName}`
+      );
     } else {
       await createTask(data);
+      showToast(`Ação salva em ${targetName}`);
     }
   };
 
   const handleQuickAddInCard = async (listId: number, title: string) => {
     await createTask({ listId, title, priority: 'media', dueDate: null });
+    const targetName = lists.find((l) => l.id === listId)?.name ?? 'lista';
+    showToast(`Ação salva em ${targetName}`);
   };
 
   const handleDumpTasks = async (listId: number, rawText: string) => {
-    return createTasksBatch(listId, rawText, 'media', null);
+    const count = await createTasksBatch(listId, rawText, 'media', null);
+    const targetName = lists.find((l) => l.id === listId)?.name ?? 'Despejo';
+    if (count > 0) {
+      showToast(
+        count === 1
+          ? `Ação salva em ${targetName}`
+          : `${count} ações salvas em ${targetName}`
+      );
+    }
+    return count;
   };
 
   const handleDetailQuickSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
-    if (!activeList?.id || detailParsedLines.length === 0) return;
-    await createTasksBatch(activeList.id, detailQuickInput, 'media', null);
+    if (activeList?.id == null || detailParsedLines.length === 0) return;
+    const count = await createTasksBatch(
+      activeList.id,
+      detailQuickInput,
+      'media',
+      null
+    );
     setDetailQuickInput('');
+    if (count > 0) {
+      showToast(
+        count === 1
+          ? `Ação salva em ${activeList.name}`
+          : `${count} ações salvas em ${activeList.name}`
+      );
+    }
   };
 
   const handleDetailQuickKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && !detailQuickInput.includes('\n')) {
-      e.preventDefault();
-      void handleDetailQuickSubmit();
-    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    // Enter quebra linha naturalmente para criar várias ações de uma vez.
+    // Ctrl+Enter / Cmd+Enter salva rapidamente no PC.
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       void handleDetailQuickSubmit();
     }
   };
 
-  const renderTaskCard = (task: Task) => {
+  const handleMoveTask = async (taskId: number, direction: 'up' | 'down') => {
+    if (activeList?.id == null) return;
+    await reorderTask(activeList.id, taskId, direction);
+  };
+
+  const handleSwitchToAutoSort = async () => {
+    if (activeList?.id == null) return;
+    await setListSortMode(activeList.id, 'auto');
+    setReorderTasksMode(false);
+    showToast('Ordenação automática ativada (data e prioridade)');
+  };
+
+  const renderTaskCard = (
+    task: Task,
+    index: number,
+    totalPending: number
+  ) => {
     const due = task.dueDate ? formatDueDate(task.dueDate) : null;
     const isOverdue = Boolean(due?.overdue && !task.completed);
+    const hasDescription = Boolean(task.description && task.description.trim());
+    const showReorderControls = reorderTasksMode && !task.completed;
 
     return (
       <div
@@ -289,12 +433,15 @@ export default function App() {
           checked={task.completed}
           aria-label={`Marcar "${task.title}" como concluída`}
           onChange={(e) =>
-            task.id && toggleTaskCompleted(task.id, e.target.checked)
+            task.id != null && void toggleTaskCompleted(task.id, e.target.checked)
           }
         />
 
         <div className="card-main">
           <p className="task-title">{task.title}</p>
+          {hasDescription && (
+            <p className="task-description">{task.description}</p>
+          )}
           <div className="badges">
             <span className={`badge badge-${task.priority}`}>
               {PRIORITY_LABEL[task.priority]}
@@ -303,7 +450,7 @@ export default function App() {
               <span
                 className={`badge ${isOverdue ? 'badge-overdue' : 'badge-date'}`}
               >
-                <Calendar size={12} />
+                <Calendar size={11} />
                 {due.label}
               </span>
             )}
@@ -311,22 +458,54 @@ export default function App() {
         </div>
 
         <div className="card-actions">
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Editar ação"
-            onClick={() => openEditTask(task)}
-          >
-            <Pencil size={18} />
-          </button>
-          <button
-            type="button"
-            className="icon-btn danger"
-            aria-label="Excluir ação"
-            onClick={() => task.id && deleteTask(task.id)}
-          >
-            <Trash2 size={18} />
-          </button>
+          {showReorderControls ? (
+            <>
+              <button
+                type="button"
+                className="icon-btn-sm reorder-arrow-btn"
+                disabled={index === 0}
+                aria-label={`Subir "${task.title}"`}
+                title="Subir"
+                onClick={() => task.id != null && void handleMoveTask(task.id, 'up')}
+              >
+                <ChevronUp size={17} />
+              </button>
+              <button
+                type="button"
+                className="icon-btn-sm reorder-arrow-btn"
+                disabled={index >= totalPending - 1}
+                aria-label={`Descer "${task.title}"`}
+                title="Descer"
+                onClick={() => task.id != null && void handleMoveTask(task.id, 'down')}
+              >
+                <ChevronDown size={17} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Editar ação"
+                onClick={() => openEditTask(task)}
+              >
+                <Pencil size={17} />
+              </button>
+              <button
+                type="button"
+                className="icon-btn danger"
+                aria-label="Excluir ação"
+                onClick={() => {
+                  if (task.id != null) {
+                    void deleteTask(task.id);
+                    showToast('Ação excluída');
+                  }
+                }}
+              >
+                <Trash2 size={17} />
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -335,6 +514,11 @@ export default function App() {
   const ActiveIcon = activeList ? getBoxIcon(activeList.icon) : null;
   const totalPending = (allTasks ?? []).filter((t) => !t.completed).length;
   const showStarters = rawLists !== undefined && lists.length <= 1;
+  const canReorderAnyBox = useMemo(() => {
+    const pinnedCount = lists.filter((l) => !l.isInbox && l.pinned).length;
+    const regularCount = lists.filter((l) => !l.isInbox && !l.pinned).length;
+    return pinnedCount > 1 || regularCount > 1;
+  }, [lists]);
 
   return (
     <div className="app-shell">
@@ -349,9 +533,10 @@ export default function App() {
                 onClick={() => {
                   setSelectedListId(null);
                   setDetailQuickInput('');
+                  setReorderTasksMode(false);
                 }}
               >
-                <ArrowLeft size={22} />
+                <ArrowLeft size={20} />
               </button>
               {ActiveIcon && (
                 <span
@@ -359,7 +544,7 @@ export default function App() {
                   data-color={activeList.color || 'blue'}
                   aria-hidden="true"
                 >
-                  <ActiveIcon size={17} />
+                  <ActiveIcon size={15} />
                 </span>
               )}
               <div className="header-title-wrap">
@@ -383,8 +568,23 @@ export default function App() {
         </div>
 
         <div className="header-right">
-          {activeList && (
+          {activeList ? (
             <>
+              {activeTasksState.pending.length > 1 && (
+                <button
+                  type="button"
+                  className={`icon-btn ${reorderTasksMode ? 'is-active' : ''}`}
+                  aria-label={
+                    reorderTasksMode ? 'Concluir reordenação' : 'Reordenar ações'
+                  }
+                  title={
+                    reorderTasksMode ? 'Concluir reordenação' : 'Reordenar ações'
+                  }
+                  onClick={() => setReorderTasksMode((prev) => !prev)}
+                >
+                  {reorderTasksMode ? <Check size={19} /> : <ArrowUpDown size={18} />}
+                </button>
+              )}
               <button
                 type="button"
                 className="icon-btn"
@@ -392,7 +592,7 @@ export default function App() {
                 title="Editar caixa"
                 onClick={() => openEditBox(activeList)}
               >
-                <Pencil size={19} />
+                <Pencil size={18} />
               </button>
               {!activeList.isInbox && (
                 <button
@@ -402,22 +602,41 @@ export default function App() {
                   title="Excluir caixa"
                   onClick={() => setListToDelete(activeList)}
                 >
-                  <Trash2 size={19} />
+                  <Trash2 size={18} />
                 </button>
               )}
             </>
-          )}
-
-          {!activeList && (
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label="Backup local em JSON"
-              title="Backup JSON"
-              onClick={() => setBackupModalOpen(true)}
-            >
-              <HardDriveDownload size={20} />
-            </button>
+          ) : (
+            <>
+              {canReorderAnyBox && (
+                <button
+                  type="button"
+                  className={`icon-btn ${reorderBoxesMode ? 'is-active' : ''}`}
+                  aria-label={
+                    reorderBoxesMode
+                      ? 'Concluir reordenação de caixas'
+                      : 'Reordenar caixas'
+                  }
+                  title={
+                    reorderBoxesMode
+                      ? 'Concluir reordenação'
+                      : 'Reordenar caixas'
+                  }
+                  onClick={() => setReorderBoxesMode((prev) => !prev)}
+                >
+                  {reorderBoxesMode ? <Check size={19} /> : <ArrowUpDown size={18} />}
+                </button>
+              )}
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Backup local em JSON"
+                title="Backup JSON"
+                onClick={() => setBackupModalOpen(true)}
+              >
+                <HardDriveDownload size={19} />
+              </button>
+            </>
           )}
 
           <button
@@ -427,7 +646,7 @@ export default function App() {
             title="Alternar tema"
             onClick={toggleTheme}
           >
-            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
           </button>
         </div>
       </header>
@@ -441,6 +660,22 @@ export default function App() {
               inputRef={quickDumpInputRef}
               onDump={handleDumpTasks}
             />
+
+            {reorderBoxesMode && (
+              <div className="reorder-banner">
+                <span>
+                  Use as setas <strong>‹ ›</strong> nas caixas para reorganizar a
+                  ordem.
+                </span>
+                <button
+                  type="button"
+                  className="btn-inline-done"
+                  onClick={() => setReorderBoxesMode(false)}
+                >
+                  Concluir
+                </button>
+              </div>
+            )}
 
             {showStarters && (
               <section className="starter-strip" aria-label="Sugestões de caixas">
@@ -458,7 +693,7 @@ export default function App() {
                         data-color={starter.color}
                         onClick={() => void handleCreateStarterBox(starter)}
                       >
-                        <StarterIcon size={14} />
+                        <StarterIcon size={13} />
                         <span>+ {starter.name}</span>
                       </button>
                     );
@@ -469,9 +704,17 @@ export default function App() {
 
             <section className="boxes-grid" aria-label="Suas caixas">
               {lists.map((list) => {
-                const state = list.id
-                  ? tasksByList.get(list.id) ?? { pending: [], completed: [] }
-                  : { pending: [], completed: [] };
+                const state =
+                  list.id != null
+                    ? tasksByList.get(list.id) ?? { pending: [], completed: [] }
+                    : { pending: [], completed: [] };
+                const bounds =
+                  list.id != null
+                    ? reorderBoundsByListId.get(list.id) ?? {
+                        canPrev: false,
+                        canNext: false,
+                      }
+                    : { canPrev: false, canNext: false };
 
                 return (
                   <BoxCard
@@ -479,9 +722,17 @@ export default function App() {
                     list={list}
                     pendingTasks={state.pending}
                     completedCount={state.completed.length}
-                    onOpen={(id) => setSelectedListId(id)}
+                    reorderMode={reorderBoxesMode}
+                    canMovePrev={bounds.canPrev}
+                    canMoveNext={bounds.canNext}
+                    onOpen={(id) => {
+                      setReorderBoxesMode(false);
+                      setSelectedListId(id);
+                    }}
                     onEdit={openEditBox}
                     onTogglePin={handleTogglePin}
+                    onMovePrev={(id) => void handleMoveBox(id, 'up')}
+                    onMoveNext={(id) => void handleMoveBox(id, 'down')}
                     onToggleTask={(taskId, completed) =>
                       void toggleTaskCompleted(taskId, completed)
                     }
@@ -500,8 +751,10 @@ export default function App() {
             >
               <textarea
                 className="detail-quick-textarea"
-                rows={detailQuickInput.includes('\n') ? 3 : 1}
-                placeholder="Adicionar rápido (cole várias linhas para criar em lote)..."
+                rows={detailTextareaRows}
+                placeholder={
+                  'Adicionar rápido...\nPule linha (Enter) para criar várias ações de uma vez'
+                }
                 value={detailQuickInput}
                 onChange={(e) => setDetailQuickInput(e.target.value)}
                 onKeyDown={handleDetailQuickKeyDown}
@@ -511,7 +764,7 @@ export default function App() {
                 className="btn-dump-submit"
                 disabled={detailParsedLines.length === 0}
               >
-                <CornerDownLeft size={16} />
+                <CornerDownLeft size={15} />
                 <span>
                   {detailParsedLines.length > 1
                     ? `Adicionar (${detailParsedLines.length})`
@@ -520,16 +773,52 @@ export default function App() {
               </button>
             </form>
 
+            {(reorderTasksMode || activeList.sortMode === 'manual') &&
+              activeTasksState.pending.length > 0 && (
+                <div className="detail-sort-bar">
+                  <span className="detail-sort-status">
+                    {reorderTasksMode
+                      ? 'Use ↑ ↓ para reordenar as ações'
+                      : 'Ordem manual ativa'}
+                  </span>
+                  <div className="detail-sort-actions">
+                    {activeList.sortMode === 'manual' && (
+                      <button
+                        type="button"
+                        className="btn-sort-pill"
+                        onClick={() => void handleSwitchToAutoSort()}
+                      >
+                        <Sparkles size={13} />
+                        <span>Auto (data/prior.)</span>
+                      </button>
+                    )}
+                    {reorderTasksMode && (
+                      <button
+                        type="button"
+                        className="btn-inline-done"
+                        onClick={() => setReorderTasksMode(false)}
+                      >
+                        Concluir
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
             {activeTasksState.pending.length > 0 ||
             activeTasksState.completed.length > 0 ? (
               <>
-                {activeTasksState.pending.map(renderTaskCard)}
+                {activeTasksState.pending.map((task, index) =>
+                  renderTaskCard(task, index, activeTasksState.pending.length)
+                )}
                 {activeTasksState.completed.length > 0 && (
                   <>
                     <div className="section-divider">
                       Concluídas ({activeTasksState.completed.length})
                     </div>
-                    {activeTasksState.completed.map(renderTaskCard)}
+                    {activeTasksState.completed.map((task, index) =>
+                      renderTaskCard(task, index, activeTasksState.pending.length)
+                    )}
                   </>
                 )}
               </>
@@ -537,14 +826,16 @@ export default function App() {
               <div className="empty-state">
                 <p>Esta caixa está vazia.</p>
                 <p>
-                  Digite na barra acima ou toque no botão + para criar uma ação
-                  com prioridade e data.
+                  Digite na barra acima (uma ou várias linhas) ou toque no botão
+                  + para criar uma ação com descrição, prioridade e data.
                 </p>
               </div>
             )}
           </div>
         )}
       </main>
+
+      <Toast message={toastMessage} />
 
       <button
         type="button"
@@ -553,7 +844,7 @@ export default function App() {
         title={activeList ? 'Nova ação detalhada' : 'Nova caixa'}
         onClick={activeList ? openCreateTask : openCreateBox}
       >
-        <Plus size={26} />
+        <Plus size={24} />
       </button>
 
       {/* Modal Criar / Editar Caixa */}
@@ -571,7 +862,7 @@ export default function App() {
         title="Excluir caixa?"
         onClose={() => setListToDelete(null)}
       >
-        <p style={{ margin: '0 0 8px' }}>
+        <p style={{ margin: '0 0 8px', fontSize: '0.9rem' }}>
           A caixa <strong>{listToDelete?.name}</strong> e todas as ações dentro
           dela serão removidas permanentemente deste dispositivo.
         </p>

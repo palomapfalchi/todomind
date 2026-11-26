@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { X } from 'lucide-react';
 
 interface ModalProps {
   open: boolean;
@@ -8,6 +9,15 @@ interface ModalProps {
 }
 
 export function Modal({ open, title, onClose, children }: ModalProps) {
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
@@ -21,7 +31,17 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
       }}
     >
       <div className="modal-sheet">
-        <h2 className="modal-title">{title}</h2>
+        <div className="modal-header">
+          <h2 className="modal-title">{title}</h2>
+          <button
+            type="button"
+            className="icon-btn-sm"
+            aria-label="Fechar janela"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
+        </div>
         {children}
       </div>
     </div>

@@ -41,6 +41,28 @@ export class ToDoMindDatabase extends Dexie {
             task.order = task.order ?? taskIndex++;
           });
       });
+
+    // Migration v3 (v1.6): Descrição da nota nas ações e modo de ordenação manual/automático
+    this.version(3)
+      .stores({
+        lists: '++id, name, pinned, order, isInbox, createdAt, updatedAt',
+        tasks: '++id, listId, completed, priority, dueDate, order, createdAt',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('lists')
+          .toCollection()
+          .modify((list: Partial<TaskList>) => {
+            list.sortMode = list.sortMode ?? 'auto';
+          });
+
+        await tx
+          .table('tasks')
+          .toCollection()
+          .modify((task: Partial<Task>) => {
+            task.description = task.description ?? '';
+          });
+      });
   }
 }
 

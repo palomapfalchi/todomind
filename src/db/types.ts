@@ -1,5 +1,7 @@
 export type Priority = 'baixa' | 'media' | 'alta';
 
+export type ListSortMode = 'auto' | 'manual';
+
 export type BoxColorId =
   | 'slate'
   | 'blue'
@@ -31,6 +33,7 @@ export interface TaskList {
   pinned: boolean;
   order: number;
   isInbox?: boolean;
+  sortMode?: ListSortMode;
   createdAt: number;
   updatedAt: number;
 }
@@ -39,6 +42,7 @@ export interface Task {
   id?: number;
   listId: number;
   title: string;
+  description?: string;
   priority: Priority;
   dueDate: string | null; // Formato YYYY-MM-DD (sem erro de fuso horário)
   completed: boolean;

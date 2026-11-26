@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { X } from 'lucide-react';
 import type { Priority, Task, TaskList } from '../db/types';
 import { Modal } from './Modal';
 
@@ -10,6 +11,7 @@ interface TaskFormModalProps {
   onClose: () => void;
   onSubmit: (data: {
     title: string;
+    description: string;
     priority: Priority;
     dueDate: string | null;
     listId: number;
@@ -25,6 +27,7 @@ export function TaskFormModal({
   onSubmit,
 }: TaskFormModalProps) {
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<Priority>('media');
   const [dueDate, setDueDate] = useState('');
   const [listId, setListId] = useState<number>(defaultListId ?? 0);
@@ -32,11 +35,10 @@ export function TaskFormModal({
   useEffect(() => {
     if (open) {
       setTitle(initialTask?.title ?? '');
+      setDescription(initialTask?.description ?? '');
       setPriority(initialTask?.priority ?? 'media');
       setDueDate(initialTask?.dueDate ?? '');
-      setListId(
-        initialTask?.listId ?? defaultListId ?? lists[0]?.id ?? 0
-      );
+      setListId(initialTask?.listId ?? defaultListId ?? lists[0]?.id ?? 0);
     }
   }, [open, initialTask, defaultListId, lists]);
 
@@ -45,6 +47,7 @@ export function TaskFormModal({
     if (!title.trim() || !listId) return;
     await onSubmit({
       title,
+      description,
       priority,
       dueDate: dueDate || null,
       listId,
@@ -112,16 +115,43 @@ export function TaskFormModal({
         </div>
 
         <div className="form-group">
+          <label className="form-label" htmlFor="task-description">
+            Descrição / Nota (opcional)
+          </label>
+          <textarea
+            id="task-description"
+            className="input textarea-field"
+            rows={3}
+            placeholder="Detalhes, links, endereço ou lembretes extras..."
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+
+        <div className="form-group">
           <label className="form-label" htmlFor="task-due">
             Vencimento (opcional)
           </label>
-          <input
-            id="task-due"
-            className="input"
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-          />
+          <div className="input-with-clear">
+            <input
+              id="task-due"
+              className="input"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+            {dueDate && (
+              <button
+                type="button"
+                className="icon-btn-sm"
+                aria-label="Limpar data"
+                title="Limpar data"
+                onClick={() => setDueDate('')}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="modal-actions">

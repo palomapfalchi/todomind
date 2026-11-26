@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Download, Upload } from 'lucide-react';
 import { exportBackupData, importBackupData } from '../db/repositories';
 import { Modal } from './Modal';
@@ -23,6 +23,12 @@ export function BackupModal({
     message: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setStatus(null);
+    }
+  }, [open]);
 
   const handleExport = async () => {
     setBusy(true);
@@ -97,7 +103,7 @@ export function BackupModal({
           disabled={busy}
           onClick={handleExport}
         >
-          <Download size={18} />
+          <Download size={17} />
           <span>Exportar backup (.json)</span>
         </button>
       </div>
@@ -149,7 +155,7 @@ export function BackupModal({
           disabled={busy}
           onClick={() => fileInputRef.current?.click()}
         >
-          <Upload size={18} />
+          <Upload size={17} />
           <span>Selecionar arquivo JSON</span>
         </button>
       </div>

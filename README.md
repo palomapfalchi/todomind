@@ -6,16 +6,17 @@ Veja o plano completo das próximas versões em [ROADMAP.md](./ROADMAP.md).
 
 ## Stack
 - Vite + React + TypeScript
-- Dexie (`dexie` + `dexie-react-hooks`) — Schema `v2`
+- Dexie (`dexie` + `dexie-react-hooks`) — Schema `v3`
 - `vite-plugin-pwa` (Workbox + App Shortcuts)
 - CSS puro com tema claro/escuro automático + alternância manual
 - Lucide React (ícones)
 
-## Funcionalidades (v1.5)
-- **Visual em Caixas (Grid Bento):** várias caixas visíveis na tela inicial (ex.: *Despejo*, *Mercado*, *Presentes*, *Compromissos*), cada uma com cor, ícone, fixação no topo e prévia das ações pendentes
+## Funcionalidades (v1.6)
+- **Visual em Caixas (Grid Bento uniforme):** várias caixas com altura fixa na tela inicial exibindo os 2 primeiros itens pendentes, cor, ícone, fixação no topo e reordenação manual
 - **Ações direto na caixa:** marque checkboxes e adicione ações rápidas diretamente nos cards sem abrir outra tela
-- **Despejo Rápido ("Tirar da cabeça"):** barra fixa no topo com caixa **Despejo (Inbox)** permanente e suporte a **entrada em lote** (cada linha vira uma ação)
-- **Detalhes completos da ação:** prioridade (`Baixa`, `Média`, `Alta`), vencimento opcional, ordenação automática e opção de mover a ação entre caixas
+- **Despejo Rápido multi-linha ("Tirar da cabeça"):** barra fixa no topo com caixa **Despejo (Inbox)** permanente onde pular linha (`Enter`) cria várias ações de uma única vez
+- **Detalhes completos da ação:** título, descrição/nota opcional, prioridade (`Baixa`, `Média`, `Alta`), vencimento opcional, reordenação manual ou automática e opção de mover entre caixas
+- **Notificações imediatas (toast):** feedback visual sempre que ações ou caixas são salvas, movidas ou atualizadas
 - **Backup local em JSON:** exporte e importe suas caixas e ações (mesclando ou substituindo dados)
 - **Atalhos PWA no Android:** segure o ícone do app para abrir direto em *Despejo Rápido* ou *Nova Caixa*
 - **Tema claro e escuro:** sincronizado com o sistema e com preferência salva localmente

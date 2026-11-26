@@ -24,6 +24,17 @@ Plano de evolução do **ToDoMind** com foco em organização visual em caixas, 
 
 ---
 
+## v1.6 — Polimento Mobile, Reordenação & Notas (Concluída)
+- [x] Migration Dexie `v3` (`description` nas ações e `sortMode` manual/automático nas caixas)
+- [x] Despejo e entrada rápida com quebra de linha nativa (`Enter` cria várias linhas → várias ações de uma vez)
+- [x] Notificação visual (toast) sempre que itens ou caixas são salvos/movidos
+- [x] Reordenação manual de caixas na tela inicial e de ações dentro de cada caixa (com opção de voltar à ordenação automática)
+- [x] Campo de **Descrição / Nota** acima do vencimento da ação (exibido no detalhe e sinalizado no card)
+- [x] Caixas com altura fixa uniforme exibindo os 2 primeiros itens pendentes + tipografia mais compacta e confortável no celular
+- [x] Auditoria completa de botões, fechamento de modais com `×`/`Esc` e botão para limpar data
+
+---
+
 ## v2.0 — Foco & Recursos TDAH (Próxima)
 - [ ] Migration Dexie `v3` (`subtasks`, `dueTime`, `estimatedMinutes`, `energy`, `archivedAt`, `isReusable`)
 - [ ] **Subtarefas / Micropassos:** quebrar tarefas grandes em passos pequenos com barra de progresso

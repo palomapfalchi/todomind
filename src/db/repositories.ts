@@ -3,6 +3,7 @@ import {
   PRIORITY_WEIGHT,
   type BoxColorId,
   type BoxIconId,
+  type ListSortMode,
   type Priority,
   type Task,
   type TaskList,
@@ -57,6 +58,7 @@ export function ensureInboxList(): Promise<TaskList> {
       pinned: true,
       order: 0,
       isInbox: true,
+      sortMode: 'auto',
       createdAt: now,
       updatedAt: now,
     };
@@ -76,14 +78,16 @@ export async function createList(data: {
   pinned?: boolean;
 }): Promise<number> {
   const now = Date.now();
-  const count = await db.lists.count();
+  const existing = await db.lists.toArray();
+  const maxOrder = existing.reduce((max, item) => Math.max(max, item.order ?? 0), 0);
   return db.lists.add({
     name: data.name.trim(),
     color: data.color ?? 'blue',
     icon: data.icon ?? 'list',
     pinned: data.pinned ?? false,
-    order: count + 1,
+    order: maxOrder + 1,
     isInbox: false,
+    sortMode: 'auto',
     createdAt: now,
     updatedAt: now,
   });
@@ -120,6 +124,49 @@ export async function toggleListPinned(
   });
 }
 
+export async function setListSortMode(
+  id: number,
+  sortMode: ListSortMode
+): Promise<void> {
+  await db.lists.update(id, {
+    sortMode,
+    updatedAt: Date.now(),
+  });
+}
+
+export async function reorderList(
+  listId: number,
+  direction: 'up' | 'down'
+): Promise<void> {
+  await db.transaction('rw', db.lists, async () => {
+    const allLists = sortLists(await db.lists.toArray());
+    const target = allLists.find((l) => l.id === listId);
+    if (!target || target.isInbox) return;
+
+    // Reordena dentro do mesmo grupo (fixadas ou normais)
+    const group = allLists.filter(
+      (l) => !l.isInbox && Boolean(l.pinned) === Boolean(target.pinned)
+    );
+    const currentIndex = group.findIndex((l) => l.id === listId);
+    const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+
+    if (currentIndex < 0 || swapIndex < 0 || swapIndex >= group.length) return;
+
+    const reordered = [...group];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(swapIndex, 0, moved);
+
+    const now = Date.now();
+    await Promise.all(
+      reordered.map((item, idx) =>
+        item.id != null
+          ? db.lists.update(item.id, { order: idx + 1, updatedAt: now })
+          : Promise.resolve(0)
+      )
+    );
+  });
+}
+
 export async function deleteListCascade(listId: number): Promise<void> {
   const list = await db.lists.get(listId);
   if (list?.isInbox) {
@@ -132,7 +179,7 @@ export async function deleteListCascade(listId: number): Promise<void> {
   });
 }
 
-// Ordenação das caixas: Despejo primeiro, depois fixadas, depois mais recentes
+// Ordenação das caixas: Despejo primeiro, depois fixadas (por order), depois normais (por order)
 export function sortLists(lists: TaskList[]): TaskList[] {
   return [...lists].sort((a, b) => {
     const aInbox = Boolean(a.isInbox);
@@ -141,8 +188,9 @@ export function sortLists(lists: TaskList[]): TaskList[] {
 
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
 
-    if (a.order !== b.order) return a.order - b.order;
-    return b.createdAt - a.createdAt;
+    const orderDiff = (a.order ?? 0) - (b.order ?? 0);
+    if (orderDiff !== 0) return orderDiff;
+    return a.createdAt - b.createdAt;
   });
 }
 
@@ -158,18 +206,22 @@ export function parseBatchLines(rawText: string): string[] {
 export async function createTask(data: {
   listId: number;
   title: string;
+  description?: string;
   priority?: Priority;
   dueDate?: string | null;
 }): Promise<number> {
   const now = Date.now();
-  const existingCount = await db.tasks.where('listId').equals(data.listId).count();
+  const listTasks = await db.tasks.where('listId').equals(data.listId).toArray();
+  const maxOrder = listTasks.reduce((max, t) => Math.max(max, t.order ?? 0), 0);
+
   return db.tasks.add({
     listId: data.listId,
     title: data.title.trim(),
+    description: (data.description ?? '').trim(),
     priority: data.priority ?? 'media',
     dueDate: data.dueDate || null,
     completed: false,
-    order: existingCount + 1,
+    order: maxOrder + 1,
     createdAt: now,
     updatedAt: now,
   });
@@ -185,14 +237,17 @@ export async function createTasksBatch(
   if (lines.length === 0) return 0;
 
   const now = Date.now();
-  const baseCount = await db.tasks.where('listId').equals(listId).count();
+  const listTasks = await db.tasks.where('listId').equals(listId).toArray();
+  const maxOrder = listTasks.reduce((max, t) => Math.max(max, t.order ?? 0), 0);
+
   const records: Omit<Task, 'id'>[] = lines.map((title, idx) => ({
     listId,
     title,
+    description: '',
     priority,
     dueDate: dueDate || null,
     completed: false,
-    order: baseCount + idx + 1,
+    order: maxOrder + idx + 1,
     createdAt: now + idx,
     updatedAt: now + idx,
   }));
@@ -205,6 +260,7 @@ export async function updateTask(
   id: number,
   data: {
     title: string;
+    description?: string;
     priority: Priority;
     dueDate: string | null;
     listId?: number;
@@ -216,6 +272,9 @@ export async function updateTask(
     dueDate: data.dueDate || null,
     updatedAt: Date.now(),
   };
+  if (typeof data.description === 'string') {
+    patch.description = data.description.trim();
+  }
   if (typeof data.listId === 'number') {
     patch.listId = data.listId;
   }
@@ -236,14 +295,60 @@ export async function deleteTask(id: number): Promise<void> {
   await db.tasks.delete(id);
 }
 
-// Ordenação: pendentes no topo (vencimento -> prioridade -> criação), concluídas abaixo
-export function sortTasks(tasks: Task[]): Task[] {
+export async function reorderTask(
+  listId: number,
+  taskId: number,
+  direction: 'up' | 'down'
+): Promise<void> {
+  await db.transaction('rw', db.lists, db.tasks, async () => {
+    const list = await db.lists.get(listId);
+    const currentMode: ListSortMode = list?.sortMode ?? 'auto';
+    const rawTasks = await db.tasks.where('listId').equals(listId).toArray();
+    const sortedPending = sortTasks(rawTasks, currentMode).filter(
+      (t) => !t.completed
+    );
+
+    const currentIndex = sortedPending.findIndex((t) => t.id === taskId);
+    const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (currentIndex < 0 || swapIndex < 0 || swapIndex >= sortedPending.length) {
+      return;
+    }
+
+    const reordered = [...sortedPending];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(swapIndex, 0, moved);
+
+    const now = Date.now();
+    await db.lists.update(listId, { sortMode: 'manual', updatedAt: now });
+    await Promise.all(
+      reordered.map((task, idx) =>
+        task.id != null
+          ? db.tasks.update(task.id, { order: idx + 1, updatedAt: now })
+          : Promise.resolve(0)
+      )
+    );
+  });
+}
+
+// Ordenação:
+// - 'manual': pendentes seguem o campo order (definido pelo usuário), concluídas abaixo
+// - 'auto': pendentes por vencimento -> prioridade -> criação, concluídas abaixo
+export function sortTasks(
+  tasks: Task[],
+  sortMode: ListSortMode = 'auto'
+): Task[] {
   return [...tasks].sort((a, b) => {
     if (a.completed !== b.completed) {
       return a.completed ? 1 : -1;
     }
 
     if (!a.completed) {
+      if (sortMode === 'manual') {
+        const orderDiff = (a.order ?? 0) - (b.order ?? 0);
+        if (orderDiff !== 0) return orderDiff;
+        return a.createdAt - b.createdAt;
+      }
+
       if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) {
         return a.dueDate.localeCompare(b.dueDate);
       }
@@ -270,7 +375,7 @@ export async function exportBackupData(): Promise<ToDoMindBackupPayload> {
 
   return {
     app: 'ToDoMind',
-    schemaVersion: 2,
+    schemaVersion: 3,
     exportedAt: new Date().toISOString(),
     lists,
     tasks,
@@ -312,7 +417,8 @@ export async function importBackupData(
     const existingLists = await db.lists.toArray();
     const existingInbox = existingLists.find((l) => l.isInbox);
     const idMap = new Map<number, number>();
-    let nextOrder = existingLists.length + 1;
+    let nextOrder =
+      existingLists.reduce((max, l) => Math.max(max, l.order ?? 0), 0) + 1;
 
     for (const rawList of payload.lists) {
       if (!rawList || typeof rawList.name !== 'string' || !rawList.name.trim()) {
@@ -338,6 +444,8 @@ export async function importBackupData(
         : isInbox
           ? 'inbox'
           : 'list';
+      const sortMode: ListSortMode =
+        rawList.sortMode === 'manual' ? 'manual' : 'auto';
 
       const newId = await db.lists.add({
         name: rawList.name.trim(),
@@ -346,6 +454,7 @@ export async function importBackupData(
         pinned: isInbox ? true : Boolean(rawList.pinned),
         order: typeof rawList.order === 'number' ? rawList.order : nextOrder++,
         isInbox,
+        sortMode,
         createdAt: typeof rawList.createdAt === 'number' ? rawList.createdAt : now,
         updatedAt: typeof rawList.updatedAt === 'number' ? rawList.updatedAt : now,
       });
@@ -370,6 +479,7 @@ export async function importBackupData(
           pinned: true,
           order: 0,
           isInbox: true,
+          sortMode: 'auto',
           createdAt: now,
           updatedAt: now,
         });
@@ -399,6 +509,10 @@ export async function importBackupData(
       await db.tasks.add({
         listId: mappedListId,
         title: rawTask.title.trim(),
+        description:
+          typeof rawTask.description === 'string'
+            ? rawTask.description.trim()
+            : '',
         priority,
         dueDate,
         completed: Boolean(rawTask.completed),

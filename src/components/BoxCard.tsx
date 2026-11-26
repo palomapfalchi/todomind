@@ -1,5 +1,12 @@
 import { useState, type FormEvent } from 'react';
-import { Pencil, Pin, Plus } from 'lucide-react';
+import {
+  AlignLeft,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  Pin,
+  Plus,
+} from 'lucide-react';
 import { getBoxIcon } from '../constants/boxes';
 import type { Task, TaskList } from '../db/types';
 
@@ -7,22 +14,32 @@ interface BoxCardProps {
   list: TaskList;
   pendingTasks: Task[];
   completedCount: number;
+  reorderMode: boolean;
+  canMovePrev: boolean;
+  canMoveNext: boolean;
   onOpen: (listId: number) => void;
   onEdit: (list: TaskList) => void;
   onTogglePin: (list: TaskList) => void;
+  onMovePrev: (listId: number) => void;
+  onMoveNext: (listId: number) => void;
   onToggleTask: (taskId: number, completed: boolean) => void;
   onQuickAdd: (listId: number, title: string) => Promise<void>;
 }
 
-const MAX_PREVIEW_ITEMS = 5;
+const MAX_PREVIEW_ITEMS = 2;
 
 export function BoxCard({
   list,
   pendingTasks,
   completedCount,
+  reorderMode,
+  canMovePrev,
+  canMoveNext,
   onOpen,
   onEdit,
   onTogglePin,
+  onMovePrev,
+  onMoveNext,
   onToggleTask,
   onQuickAdd,
 }: BoxCardProps) {
@@ -36,7 +53,7 @@ export function BoxCard({
   const handleQuickSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const trimmed = quickTitle.trim();
-    if (!trimmed || !list.id || adding) return;
+    if (!trimmed || list.id == null || adding) return;
     setAdding(true);
     try {
       await onQuickAdd(list.id, trimmed);
@@ -48,21 +65,25 @@ export function BoxCard({
 
   return (
     <article
-      className={`box-card ${list.isInbox ? 'box-card-inbox' : ''}`}
+      className={`box-card ${list.isInbox ? 'box-card-inbox' : ''} ${reorderMode ? 'is-reordering' : ''}`}
       data-color={list.color || 'blue'}
-      onClick={() => list.id && onOpen(list.id)}
+      onClick={() => {
+        if (!reorderMode && list.id != null) {
+          onOpen(list.id);
+        }
+      }}
     >
       <div className="box-card-header">
         <div className="box-card-title-wrap">
           <span className="box-icon-pill" aria-hidden="true">
-            <Icon size={16} />
+            <Icon size={14} />
           </span>
           <div className="box-title-block">
             <h2 className="box-card-title">{list.name}</h2>
             <span className="box-card-meta">
               {pendingTasks.length === 0
                 ? completedCount > 0
-                  ? `${completedCount} concluída${completedCount === 1 ? '' : 's'}`
+                  ? `${completedCount} feita${completedCount === 1 ? '' : 's'}`
                   : 'Vazia'
                 : `${pendingTasks.length} pendente${pendingTasks.length === 1 ? '' : 's'}`}
             </span>
@@ -73,26 +94,57 @@ export function BoxCard({
           className="box-card-actions"
           onClick={(e) => e.stopPropagation()}
         >
-          {!list.isInbox && (
-            <button
-              type="button"
-              className={`icon-btn-sm ${list.pinned ? 'is-pinned' : ''}`}
-              aria-label={list.pinned ? 'Desafixar caixa' : 'Fixar caixa no topo'}
-              title={list.pinned ? 'Desafixar' : 'Fixar no topo'}
-              onClick={() => onTogglePin(list)}
-            >
-              <Pin size={15} />
-            </button>
+          {reorderMode ? (
+            !list.isInbox ? (
+              <>
+                <button
+                  type="button"
+                  className="icon-btn-xs reorder-arrow-btn"
+                  disabled={!canMovePrev}
+                  aria-label={`Mover caixa ${list.name} para antes`}
+                  title="Mover antes"
+                  onClick={() => list.id != null && onMovePrev(list.id)}
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn-xs reorder-arrow-btn"
+                  disabled={!canMoveNext}
+                  aria-label={`Mover caixa ${list.name} para depois`}
+                  title="Mover depois"
+                  onClick={() => list.id != null && onMoveNext(list.id)}
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </>
+            ) : (
+              <span className="inbox-fixed-tag">Fixa</span>
+            )
+          ) : (
+            <>
+              {!list.isInbox && (
+                <button
+                  type="button"
+                  className={`icon-btn-xs ${list.pinned ? 'is-pinned' : ''}`}
+                  aria-label={list.pinned ? 'Desafixar caixa' : 'Fixar caixa no topo'}
+                  title={list.pinned ? 'Desafixar' : 'Fixar no topo'}
+                  onClick={() => onTogglePin(list)}
+                >
+                  <Pin size={13} />
+                </button>
+              )}
+              <button
+                type="button"
+                className="icon-btn-xs"
+                aria-label={`Editar caixa ${list.name}`}
+                title="Editar caixa"
+                onClick={() => onEdit(list)}
+              >
+                <Pencil size={13} />
+              </button>
+            </>
           )}
-          <button
-            type="button"
-            className="icon-btn-sm"
-            aria-label={`Editar caixa ${list.name}`}
-            title="Editar caixa"
-            onClick={() => onEdit(list)}
-          >
-            <Pencil size={15} />
-          </button>
         </div>
       </div>
 
@@ -105,21 +157,32 @@ export function BoxCard({
                 className="box-preview-item"
                 onClick={(e) => e.stopPropagation()}
               >
-                <input
-                  type="checkbox"
-                  className="box-preview-check"
-                  checked={task.completed}
-                  aria-label={`Concluir "${task.title}"`}
-                  onChange={(e) =>
-                    task.id && onToggleTask(task.id, e.target.checked)
-                  }
-                />
+                <label className="box-preview-check-wrap">
+                  <input
+                    type="checkbox"
+                    className="box-preview-check"
+                    checked={task.completed}
+                    aria-label={`Concluir "${task.title}"`}
+                    onChange={(e) =>
+                      task.id != null && onToggleTask(task.id, e.target.checked)
+                    }
+                  />
+                </label>
                 <span
                   className="box-preview-text"
-                  onClick={() => list.id && onOpen(list.id)}
+                  onClick={() => {
+                    if (!reorderMode && list.id != null) onOpen(list.id);
+                  }}
                 >
                   {task.title}
                 </span>
+                {task.description && task.description.trim().length > 0 && (
+                  <AlignLeft
+                    size={11}
+                    className="box-note-indicator"
+                    aria-label="Possui descrição"
+                  />
+                )}
                 {task.priority === 'alta' && (
                   <span
                     className="priority-dot priority-dot-alta"
@@ -133,14 +196,14 @@ export function BoxCard({
         ) : (
           <p className="box-empty-hint">
             {list.isInbox
-              ? 'Cabeça leve! Jogue ideias na barra acima.'
+              ? 'Cabeça leve! Jogue ideias acima.'
               : 'Tudo em dia por aqui.'}
           </p>
         )}
 
         {hiddenPending > 0 && (
           <span className="box-more-hint">
-            +{hiddenPending} ação{hiddenPending === 1 ? '' : 'ões'} na caixa
+            +{hiddenPending} ação{hiddenPending === 1 ? '' : 'ões'}
           </span>
         )}
       </div>
@@ -156,16 +219,17 @@ export function BoxCard({
           placeholder="+ ação rápida"
           aria-label={`Adicionar ação rápida em ${list.name}`}
           value={quickTitle}
+          disabled={reorderMode}
           onChange={(e) => setQuickTitle(e.target.value)}
         />
-        {quickTitle.trim().length > 0 && (
+        {quickTitle.trim().length > 0 && !reorderMode && (
           <button
             type="submit"
             className="box-quick-submit"
             aria-label="Adicionar"
             disabled={adding}
           >
-            <Plus size={15} />
+            <Plus size={13} />
           </button>
         )}
       </form>
