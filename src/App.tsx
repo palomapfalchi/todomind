@@ -529,7 +529,7 @@ export default function App() {
     if (count > 0) {
       triggerHaptic('reset');
       showToast(
-        `Checklist resetado — ${count} ação${count === 1 ? '' : 'ões'} pronta${count === 1 ? '' : 's'} de novo`
+        `Checklist resetado — ${count} ${count === 1 ? 'ação pronta' : 'ações prontas'} de novo`
       );
     } else {
       showToast('Todas as ações já estão pendentes');
@@ -686,8 +686,8 @@ export default function App() {
       triggerHaptic('check');
       showToast(
         target === 'today'
-          ? `${count} ação${count === 1 ? '' : 'ões'} trazida${count === 1 ? '' : 's'} para hoje`
-          : `${count} ação${count === 1 ? '' : 'ões'} adiada${count === 1 ? '' : 's'} para amanhã`
+          ? `${count} ${count === 1 ? 'ação trazida' : 'ações trazidas'} para hoje`
+          : `${count} ${count === 1 ? 'ação adiada' : 'ações adiadas'} para amanhã`
       );
     }
   };
@@ -946,8 +946,8 @@ export default function App() {
               <h1 className="header-title">ToDoMind</h1>
               <span className="header-subtitle">
                 {lists.length} caixa{lists.length === 1 ? '' : 's'} ·{' '}
-                {totalPending} ação{totalPending === 1 ? '' : 'ões'} pendente
-                {totalPending === 1 ? '' : 's'}
+                {totalPending}{' '}
+                {totalPending === 1 ? 'ação pendente' : 'ações pendentes'}
               </span>
             </div>
           )}

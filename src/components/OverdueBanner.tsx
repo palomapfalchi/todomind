@@ -19,7 +19,7 @@ export function OverdueBanner({
         <CalendarClock size={16} aria-hidden="true" />
         <span>
           <strong>
-            {count} ação{count === 1 ? '' : 'ões'}
+            {count} {count === 1 ? 'ação' : 'ações'}
           </strong>{' '}
           de dias anteriores — sem culpa, quer reorganizar?
         </span>

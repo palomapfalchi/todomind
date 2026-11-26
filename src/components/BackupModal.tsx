@@ -92,7 +92,7 @@ export function BackupModal({
       <p className="backup-intro">
         Seus dados ficam salvos apenas neste dispositivo ({listsCount}{' '}
         caixa{listsCount === 1 ? '' : 's'} e {tasksCount}{' '}
-        ação{tasksCount === 1 ? '' : 'ões'}). Exporte um arquivo JSON sempre que
+        {tasksCount === 1 ? 'ação' : 'ações'}). Exporte um arquivo JSON sempre que
         quiser guardar uma cópia de segurança.
       </p>
 

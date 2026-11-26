@@ -268,7 +268,7 @@ export function BoxCard({
 
         {hiddenPending > 0 && (
           <span className="box-more-hint">
-            +{hiddenPending} ação{hiddenPending === 1 ? '' : 'ões'}
+            +{hiddenPending} {hiddenPending === 1 ? 'ação' : 'ações'}
           </span>
         )}
       </div>

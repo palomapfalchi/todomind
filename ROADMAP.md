@@ -51,6 +51,7 @@ Plano de evolução do **ToDoMind** com foco em organização visual em caixas, 
 - [ ] Arquivar/recolher caixas pausadas sem excluir histórico
 - [ ] Filtros rápidos por tempo livre, nível de energia ou prioridade
 - [ ] Lembretes locais (Notification API / Service Worker) para ações com horário definido (`dueTime`)
+- [ ] Adicionar horário opcional junto do calendário ao criar uma ação
 
 ---
 
